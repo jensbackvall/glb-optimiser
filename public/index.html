@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GLB Optimizer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --surface-2: #1a1a26;
+      --border: #2a2a3a;
+      --text: #e4e4ed;
+      --text-muted: #8888a0;
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --success: #22c55e;
+      --error: #ef4444;
+      --radius: 10px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      margin-bottom: 2rem;
+      font-size: 0.95rem;
+    }
+
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      background: var(--surface);
+      margin-bottom: 1.5rem;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(99, 102, 241, 0.05);
+    }
+
+    .drop-zone svg {
+      width: 48px;
+      height: 48px;
+      stroke: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    .drop-zone p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    .drop-zone .browse {
+      color: var(--accent);
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .options-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 640px) {
+      .options-grid { grid-template-columns: 1fr; }
+    }
+
+    .option-group {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+    }
+
+    .option-group h3 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    .option-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+    }
+
+    .option-row + .option-row {
+      border-top: 1px solid var(--border);
+    }
+
+    .option-row label {
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .toggle {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 22px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+
+    .toggle input {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+      pointer-events: none;
+    }
+
+    .toggle .slider {
+      position: absolute;
+      inset: 0;
+      background: var(--border);
+      border-radius: 11px;
+      transition: background 0.2s;
+      cursor: pointer;
+    }
+
+    .toggle .slider::before {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      left: 3px;
+      top: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+
+    .toggle input:checked + .slider {
+      background: var(--accent);
+    }
+
+    .toggle input:checked + .slider::before {
+      transform: translateX(18px);
+    }
+
+    select, input[type="range"] {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 0.4rem 0.6rem;
+      font-size: 0.85rem;
+    }
+
+    select { cursor: pointer; }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100px;
+      height: 6px;
+      border: none;
+      background: var(--border);
+      border-radius: 3px;
+      padding: 0;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+    }
+
+    .simplify-controls {
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+      padding-left: 1.5rem;
+    }
+
+    .simplify-controls.visible { display: flex; }
+
+    .simplify-controls span {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      min-width: 2.5rem;
+      text-align: right;
+    }
+
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1.5rem;
+      font-size: 0.9rem;
+    }
+
+    .results-table th {
+      text-align: left;
+      padding: 0.75rem 1rem;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .results-table td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    .results-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .results-wrapper {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: none;
+    }
+
+    .results-wrapper.visible { display: block; }
+
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .badge-success { background: rgba(34, 197, 94, 0.15); color: var(--success); }
+    .badge-error { background: rgba(239, 68, 68, 0.15); color: var(--error); }
+    .badge-pending { background: rgba(99, 102, 241, 0.15); color: var(--accent); }
+
+    .progress-bar {
+      width: 100px;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .progress-bar .fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 3px;
+      transition: width 0.3s;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-sm {
+      padding: 0.3rem 0.6rem;
+      font-size: 0.8rem;
+    }
+
+    .actions-bar {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .note {
+      background: rgba(99, 102, 241, 0.08);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 1rem;
+      display: none;
+    }
+
+    .note.visible { display: block; }
+
+    #fileInput { display: none; }
+
+    .staged-files {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+      display: none;
+    }
+
+    .staged-files.visible { display: block; }
+
+    .staged-files-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1rem;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .staged-files-header h3 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .staged-file-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .staged-file-item:last-child { border-bottom: none; }
+
+    .staged-file-info {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .staged-file-name {
+      font-size: 0.9rem;
+    }
+
+    .staged-file-size {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .btn-remove {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1.1rem;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      transition: color 0.2s, background 0.2s;
+      line-height: 1;
+    }
+
+    .btn-remove:hover {
+      color: var(--error);
+      background: rgba(239, 68, 68, 0.1);
+    }
+
+    .compress-bar {
+      display: none;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .compress-bar.visible { display: flex; }
+
+    .compress-bar .file-count {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .btn-compress {
+      background: var(--accent);
+      color: white;
+      padding: 0.6rem 1.5rem;
+      font-size: 0.95rem;
+    }
+
+    .btn-compress:hover { background: var(--accent-hover); }
+
+    .advanced-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.7rem 1rem;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+      transition: color 0.2s, border-color 0.2s;
+      margin-bottom: 0;
+    }
+
+    .advanced-toggle:hover {
+      color: var(--text);
+      border-color: var(--accent);
+    }
+
+    .advanced-toggle .chevron {
+      transition: transform 0.2s;
+      font-size: 0.7rem;
+    }
+
+    .advanced-toggle.open .chevron {
+      transform: rotate(90deg);
+    }
+
+    .advanced-panel {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+
+    .advanced-panel.open {
+      max-height: 1200px;
+    }
+
+    .advanced-panel .options-grid {
+      margin-top: 1rem;
+    }
+
+    .advanced-section {
+      margin-bottom: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>GLB Optimizer</h1>
+    <p class="subtitle">Compress and optimize your GLB/GLTF 3D models</p>
+
+    <div class="drop-zone" id="dropZone">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+      </svg>
+      <p>Drag and drop <strong>GLB/GLTF</strong> files here</p>
+      <p>or <span class="browse">browse files</span></p>
+      <input type="file" id="fileInput" accept=".glb,.gltf" multiple>
+    </div>
+
+    <div class="staged-files" id="stagedFiles">
+      <div class="staged-files-header">
+        <h3>Queued Files</h3>
+        <button class="btn-remove" id="clearAll" title="Remove all">&times; Clear</button>
+      </div>
+      <div id="stagedList"></div>
+    </div>
+
+    <div class="compress-bar" id="compressBar">
+      <span class="file-count" id="fileCount"></span>
+      <button class="btn btn-compress" id="compressBtn">Compress Model</button>
+    </div>
+
+    <div class="advanced-section">
+      <button class="advanced-toggle" id="advancedToggle">
+        <span class="chevron">&#9654;</span> Advanced Settings
+      </button>
+      <div class="advanced-panel" id="advancedPanel">
+        <div class="options-grid">
+          <div class="option-group">
+            <h3>Texture Options</h3>
+            <div class="option-row">
+              <label>Format</label>
+              <select id="textureFormat">
+                <option value="webp" selected>WebP</option>
+                <option value="jpeg">JPEG</option>
+                <option value="png">PNG</option>
+                <option value="avif">AVIF</option>
+              </select>
+            </div>
+            <div class="option-row">
+              <label>Max Size</label>
+              <select id="textureSize">
+                <option value="512">512px</option>
+                <option value="1024" selected>1024px</option>
+                <option value="2048">2048px</option>
+                <option value="4096">4096px</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="option-group">
+            <h3>Mesh Options</h3>
+            <div class="option-row">
+              <label for="optDedup">Remove duplicates</label>
+              <label class="toggle">
+                <input type="checkbox" id="optDedup" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="option-row">
+              <label for="optPrune">Remove unused</label>
+              <label class="toggle">
+                <input type="checkbox" id="optPrune" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="option-row">
+              <label for="optWeld">Weld vertices</label>
+              <label class="toggle">
+                <input type="checkbox" id="optWeld">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="option-row">
+              <label for="optDraco">Draco compression</label>
+              <label class="toggle">
+                <input type="checkbox" id="optDraco">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="option-group">
+            <h3>Geometry</h3>
+            <div class="option-row">
+              <label for="optSimplify">Simplify geometry</label>
+              <label class="toggle">
+                <input type="checkbox" id="optSimplify">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="simplify-controls" id="simplifyControls">
+              <label>Ratio</label>
+              <input type="range" id="simplifyRatio" min="0" max="1" step="0.05" value="0.75">
+              <span id="simplifyValue">0.75</span>
+            </div>
+            <div class="option-row">
+              <label for="optFlatten">Flatten nodes</label>
+              <label class="toggle">
+                <input type="checkbox" id="optFlatten">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="option-row">
+              <label for="optJoin">Join meshes</label>
+              <label class="toggle">
+                <input type="checkbox" id="optJoin">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="option-group">
+            <h3>Instancing</h3>
+            <div class="option-row">
+              <label for="optInstance">Instance meshes</label>
+              <label class="toggle">
+                <input type="checkbox" id="optInstance">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="note" id="dracoNote">
+          <strong>Note:</strong> When using Draco compression, include DRACOLoader in your GLTF loader (Three.js, Unity, etc.).
+        </div>
+      </div>
+    </div>
+
+    <div class="results-wrapper" id="results">
+      <table class="results-table">
+        <thead>
+          <tr>
+            <th>File Name</th>
+            <th>Original</th>
+            <th>Compressed</th>
+            <th>Reduction</th>
+            <th>Status</th>
+            <th>Progress</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+    </div>
+
+    <div class="actions-bar" id="actionsBar" style="display: none;">
+      <button class="btn btn-primary" id="downloadAll">Download All</button>
+    </div>
+  </div>
+
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const stagedFilesEl = document.getElementById('stagedFiles');
+    const stagedList = document.getElementById('stagedList');
+    const compressBar = document.getElementById('compressBar');
+    const compressBtn = document.getElementById('compressBtn');
+    const fileCountEl = document.getElementById('fileCount');
+    const resultsWrapper = document.getElementById('results');
+    const resultsBody = document.getElementById('resultsBody');
+    const actionsBar = document.getElementById('actionsBar');
+    const dracoNote = document.getElementById('dracoNote');
+    const simplifyControls = document.getElementById('simplifyControls');
+    const simplifyRatio = document.getElementById('simplifyRatio');
+    const simplifyValue = document.getElementById('simplifyValue');
+    const optSimplify = document.getElementById('optSimplify');
+    const optDraco = document.getElementById('optDraco');
+
+    const advancedToggle = document.getElementById('advancedToggle');
+    const advancedPanel = document.getElementById('advancedPanel');
+
+    advancedToggle.addEventListener('click', () => {
+      advancedToggle.classList.toggle('open');
+      advancedPanel.classList.toggle('open');
+    });
+
+    let stagedFiles = [];
+    const completedFiles = [];
+
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(1024));
+      return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${units[i]}`;
+    }
+
+    function getOptions() {
+      return {
+        textureFormat: document.getElementById('textureFormat').value,
+        textureSize: parseInt(document.getElementById('textureSize').value, 10),
+        dedup: document.getElementById('optDedup').checked,
+        prune: document.getElementById('optPrune').checked,
+        weld: document.getElementById('optWeld').checked,
+        draco: optDraco.checked,
+        simplify: optSimplify.checked,
+        simplifyRatio: parseFloat(simplifyRatio.value),
+        instance: document.getElementById('optInstance').checked,
+        flatten: document.getElementById('optFlatten').checked,
+        join: document.getElementById('optJoin').checked,
+      };
+    }
+
+    function updateStagedUI() {
+      stagedList.innerHTML = '';
+      stagedFiles.forEach((file, idx) => {
+        const item = document.createElement('div');
+        item.className = 'staged-file-item';
+        item.innerHTML = `
+          <div class="staged-file-info">
+            <span class="staged-file-name">${file.name}</span>
+            <span class="staged-file-size">${formatBytes(file.size)}</span>
+          </div>
+          <button class="btn-remove" data-idx="${idx}" title="Remove file">&times;</button>
+        `;
+        stagedList.appendChild(item);
+      });
+
+      const hasFiles = stagedFiles.length > 0;
+      stagedFilesEl.classList.toggle('visible', hasFiles);
+      compressBar.classList.toggle('visible', hasFiles);
+      fileCountEl.textContent = `${stagedFiles.length} file${stagedFiles.length !== 1 ? 's' : ''} queued`;
+      compressBtn.textContent = stagedFiles.length === 1 ? 'Compress Model' : `Compress ${stagedFiles.length} Models`;
+    }
+
+    stagedList.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn-remove');
+      if (!btn) return;
+      const idx = parseInt(btn.dataset.idx, 10);
+      stagedFiles.splice(idx, 1);
+      updateStagedUI();
+    });
+
+    document.getElementById('clearAll').addEventListener('click', () => {
+      stagedFiles = [];
+      updateStagedUI();
+    });
+
+    optSimplify.addEventListener('change', () => {
+      simplifyControls.classList.toggle('visible', optSimplify.checked);
+    });
+
+    simplifyRatio.addEventListener('input', () => {
+      simplifyValue.textContent = simplifyRatio.value;
+    });
+
+    optDraco.addEventListener('change', () => {
+      dracoNote.classList.toggle('visible', optDraco.checked);
+    });
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.querySelector('.browse').addEventListener('click', (e) => {
+      e.stopPropagation();
+      fileInput.click();
+    });
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      stageFiles(e.dataTransfer.files);
+    });
+
+    fileInput.addEventListener('change', () => {
+      stageFiles(fileInput.files);
+      fileInput.value = '';
+    });
+
+    function stageFiles(files) {
+      const validFiles = Array.from(files).filter(f =>
+        f.name.endsWith('.glb') || f.name.endsWith('.gltf')
+      );
+      if (validFiles.length === 0) return;
+      stagedFiles.push(...validFiles);
+      updateStagedUI();
+    }
+
+    compressBtn.addEventListener('click', () => {
+      if (stagedFiles.length === 0) return;
+
+      const filesToProcess = [...stagedFiles];
+      stagedFiles = [];
+      updateStagedUI();
+
+      resultsWrapper.classList.add('visible');
+      filesToProcess.forEach(processFile);
+    });
+
+    async function processFile(file) {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${file.name}</td>
+        <td>${formatBytes(file.size)}</td>
+        <td>-</td>
+        <td>-</td>
+        <td><span class="badge badge-pending">Processing</span></td>
+        <td><div class="progress-bar"><div class="fill" style="width: 0%"></div></div></td>
+        <td>-</td>
+      `;
+      resultsBody.appendChild(row);
+
+      const progressFill = row.querySelector('.fill');
+      let progress = 0;
+      const progressInterval = setInterval(() => {
+        progress = Math.min(progress + Math.random() * 15, 90);
+        progressFill.style.width = `${progress}%`;
+      }, 500);
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('options', JSON.stringify(getOptions()));
+
+      try {
+        const response = await fetch('/api/optimize', {
+          method: 'POST',
+          body: formData,
+        });
+
+        clearInterval(progressInterval);
+
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.message || 'Optimization failed');
+        }
+
+        const blob = await response.blob();
+        const originalSize = parseInt(response.headers.get('X-Original-Size'), 10);
+        const compressedSize = parseInt(response.headers.get('X-Compressed-Size'), 10);
+        const reduction = response.headers.get('X-Reduction');
+        const time = response.headers.get('X-Processing-Time');
+
+        const url = URL.createObjectURL(blob);
+        const outputName = file.name.replace(/\.\w+$/, '-optimized.glb');
+
+        completedFiles.push({ url, name: outputName });
+        actionsBar.style.display = 'flex';
+
+        const cells = row.querySelectorAll('td');
+        cells[2].textContent = formatBytes(compressedSize);
+        cells[3].textContent = `${reduction}%`;
+        cells[4].innerHTML = `<span class="badge badge-success">Done (${time}s)</span>`;
+        progressFill.style.width = '100%';
+        cells[6].innerHTML = `<button class="btn btn-primary btn-sm" onclick="downloadFile('${url}', '${outputName}')">Download</button>`;
+      } catch (err) {
+        clearInterval(progressInterval);
+        const cells = row.querySelectorAll('td');
+        cells[4].innerHTML = `<span class="badge badge-error">Failed</span>`;
+        cells[6].textContent = err.message;
+        progressFill.style.width = '0%';
+      }
+    }
+
+    function downloadFile(url, name) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.click();
+    }
+
+    document.getElementById('downloadAll').addEventListener('click', () => {
+      completedFiles.forEach(({ url, name }) => downloadFile(url, name));
+    });
+  </script>
+</body>
+</html>
