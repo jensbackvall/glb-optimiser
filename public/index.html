@@ -3,11 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GLB Optimizer</title>
+  <title>3D Model Converter & GLB Optimiser</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    :root {
+    :root { --radius: 10px; }
+
+    [data-theme="dark"] {
       --bg: #0a0a0f;
       --surface: #12121a;
       --surface-2: #1a1a26;
@@ -18,7 +20,23 @@
       --accent-hover: #818cf8;
       --success: #22c55e;
       --error: #ef4444;
-      --radius: 10px;
+      --toggle-bg: #1a1a26;
+      --toggle-icon: #e4e4ed;
+    }
+
+    [data-theme="light"] {
+      --bg: #f3f3f6;
+      --surface: #ffffff;
+      --surface-2: #f7f7f9;
+      --border: #e0e0e8;
+      --text: #1e1e2e;
+      --text-muted: #6b6b80;
+      --accent: #6c5ce7;
+      --accent-hover: #7f72ea;
+      --success: #16a34a;
+      --error: #dc2626;
+      --toggle-bg: #ffffff;
+      --toggle-icon: #1e1e2e;
     }
 
     body {
@@ -27,18 +45,52 @@
       color: var(--text);
       min-height: 100vh;
       line-height: 1.5;
+      transition: background 0.25s, color 0.25s;
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 1.25rem 1.5rem 0;
+    }
+
+    .top-bar h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 0;
+    }
+
+    .theme-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.35rem 0.75rem;
+      cursor: pointer;
+      color: var(--toggle-icon);
+      font-size: 0.8rem;
+      font-weight: 500;
+      transition: background 0.25s, border-color 0.25s, color 0.25s;
+    }
+
+    .theme-toggle:hover {
+      border-color: var(--accent);
+    }
+
+    .theme-toggle .icon {
+      font-size: 1rem;
+      line-height: 1;
     }
 
     .container {
       max-width: 960px;
       margin: 0 auto;
-      padding: 2rem 1.5rem;
-    }
-
-    h1 {
-      font-size: 1.8rem;
-      font-weight: 700;
-      margin-bottom: 0.25rem;
+      padding: 0.5rem 1.5rem 2rem;
     }
 
     .subtitle {
@@ -53,14 +105,14 @@
       padding: 3rem 2rem;
       text-align: center;
       cursor: pointer;
-      transition: border-color 0.2s, background 0.2s;
+      transition: border-color 0.25s, background 0.25s;
       background: var(--surface);
       margin-bottom: 1.5rem;
     }
 
     .drop-zone:hover, .drop-zone.dragover {
       border-color: var(--accent);
-      background: rgba(99, 102, 241, 0.05);
+      background: color-mix(in srgb, var(--accent) 5%, transparent);
     }
 
     .drop-zone svg {
@@ -149,7 +201,7 @@
       inset: 0;
       background: var(--border);
       border-radius: 11px;
-      transition: background 0.2s;
+      transition: background 0.25s;
       cursor: pointer;
     }
 
@@ -160,9 +212,10 @@
       height: 16px;
       left: 3px;
       top: 3px;
-      background: white;
+      background: var(--surface);
       border-radius: 50%;
       transition: transform 0.2s;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.15);
     }
 
     .toggle input:checked + .slider {
@@ -267,9 +320,9 @@
       font-weight: 600;
     }
 
-    .badge-success { background: rgba(34, 197, 94, 0.15); color: var(--success); }
-    .badge-error { background: rgba(239, 68, 68, 0.15); color: var(--error); }
-    .badge-pending { background: rgba(99, 102, 241, 0.15); color: var(--accent); }
+    .badge-success { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); }
+    .badge-error { background: color-mix(in srgb, var(--error) 15%, transparent); color: var(--error); }
+    .badge-pending { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
 
     .progress-bar {
       width: 100px;
@@ -320,8 +373,8 @@
     }
 
     .note {
-      background: rgba(99, 102, 241, 0.08);
-      border: 1px solid rgba(99, 102, 241, 0.2);
+      background: color-mix(in srgb, var(--accent) 8%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
       border-radius: var(--radius);
       padding: 0.75rem 1rem;
       font-size: 0.85rem;
@@ -401,7 +454,7 @@
 
     .btn-remove:hover {
       color: var(--error);
-      background: rgba(239, 68, 68, 0.1);
+      background: color-mix(in srgb, var(--error) 10%, transparent);
     }
 
     .compress-bar {
@@ -478,9 +531,15 @@
     }
   </style>
 </head>
-<body>
+<body data-theme="dark">
+  <div class="top-bar">
+    <h1>3D Model Converter & GLB Optimiser</h1>
+    <button class="theme-toggle" id="themeToggle">
+      <span class="icon" id="themeIcon">&#9790;</span>
+      <span id="themeLabel">Dark</span>
+    </button>
+  </div>
   <div class="container">
-    <h1>GLB Optimizer</h1>
     <p class="subtitle">Convert, compress and optimize your 3D models</p>
 
     <div class="drop-zone" id="dropZone">
@@ -499,11 +558,6 @@
         <button class="btn-remove" id="clearAll" title="Remove all">&times; Clear</button>
       </div>
       <div id="stagedList"></div>
-    </div>
-
-    <div class="compress-bar" id="compressBar">
-      <span class="file-count" id="fileCount"></span>
-      <button class="btn btn-compress" id="compressBtn">Compress Model</button>
     </div>
 
     <div class="advanced-section">
@@ -614,6 +668,11 @@
       </div>
     </div>
 
+    <div class="compress-bar" id="compressBar">
+      <span class="file-count" id="fileCount"></span>
+      <button class="btn btn-compress" id="compressBtn">Optimise</button>
+    </div>
+
     <div class="results-wrapper" id="results">
       <table class="results-table">
         <thead>
@@ -637,6 +696,30 @@
   </div>
 
   <script>
+    const themeToggle = document.getElementById('themeToggle');
+    const themeIcon = document.getElementById('themeIcon');
+    const themeLabel = document.getElementById('themeLabel');
+
+    function setTheme(theme) {
+      document.body.setAttribute('data-theme', theme);
+      localStorage.setItem('theme', theme);
+      if (theme === 'light') {
+        themeIcon.textContent = '\u2600';
+        themeLabel.textContent = 'Light';
+      } else {
+        themeIcon.textContent = '\u263E';
+        themeLabel.textContent = 'Dark';
+      }
+    }
+
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    setTheme(savedTheme);
+
+    themeToggle.addEventListener('click', () => {
+      const current = document.body.getAttribute('data-theme');
+      setTheme(current === 'dark' ? 'light' : 'dark');
+    });
+
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
     const stagedFilesEl = document.getElementById('stagedFiles');

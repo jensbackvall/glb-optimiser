@@ -1,4 +1,4 @@
-# GLB Optimizer
+# 3D Model Converter & GLB Optimiser
 
 A self-hosted 3D model converter and optimizer built on [glTF-Transform](https://github.com/donmccurdy/glTF-Transform), [assimpjs](https://github.com/kovacsv/assimpjs), and [occt-import-js](https://github.com/kovacsv/occt-import-js).
 
@@ -29,6 +29,16 @@ Convert common 3D formats to GLB automatically before optimization:
 - **Join** — Merge compatible primitives to reduce draw calls
 - **Weld** — Merge bitwise-identical vertices
 
+### Web Dashboard
+
+- **Drag-and-drop** upload for all supported formats
+- **Queued files** list with per-file remove and clear-all controls
+- **Standard compression** with safe defaults — no configuration needed
+- **Advanced Settings** collapsible panel for full control over all optimization options
+- **Dark / Light mode** toggle with localStorage persistence
+- **Batch processing** with per-file progress, status, and individual download buttons
+- **Smart button labels** — shows "Convert & Optimise" for non-GLB files, "Optimise" for GLB files
+
 ## Getting Started
 
 ### Prerequisites
@@ -46,7 +56,7 @@ npm start
 
 Then open [http://localhost:3000](http://localhost:3000) in your browser.
 
-Drop any supported 3D file (GLB, OBJ, FBX, STL, DAE, STEP, STP, IGES), adjust settings if needed via "Advanced Settings", and click **Compress Model**. Non-GLB formats are automatically converted first. The default compression (dedup + prune + WebP textures at 1024px) is safe for all models including those with animations.
+Drop any supported 3D file (GLB, OBJ, FBX, STL, DAE, STEP, STP, IGES), adjust settings if needed via "Advanced Settings", and click **Optimise** (or **Convert & Optimise** for non-GLB files). Non-GLB formats are automatically converted first. The default compression (dedup + prune + WebP textures at 1024px) is safe for all models including those with animations. Use the theme toggle in the top-right to switch between dark and light mode.
 
 ## CLI
 
