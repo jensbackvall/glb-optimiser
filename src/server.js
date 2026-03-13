@@ -1,6 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import { optimizeGLB, formatBytes } from './optimizer.js';
+import { convertToGLB, needsConversion, isSupported, getSupportedExtensions } from './converter.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -11,6 +12,10 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.static(join(__dirname, '..', 'public')));
 app.use(express.json());
+
+app.get('/api/formats', (req, res) => {
+  res.json({ formats: getSupportedExtensions() });
+});
 
 app.post('/api/optimize', upload.single('file'), async (req, res) => {
   if (!req.file) {
@@ -29,9 +34,23 @@ app.post('/api/optimize', upload.single('file'), async (req, res) => {
   const originalSize = req.file.size;
   const fileName = req.file.originalname;
 
+  if (!isSupported(fileName)) {
+    return res.status(400).json({ error: `Unsupported format. Supported: ${getSupportedExtensions().join(', ')}` });
+  }
+
   try {
     const startTime = Date.now();
-    const outputBuffer = await optimizeGLB(req.file.buffer, options);
+    let glbBuffer = req.file.buffer;
+    let converted = false;
+
+    if (needsConversion(fileName)) {
+      console.log(`Converting ${fileName} to GLB...`);
+      glbBuffer = await convertToGLB(req.file.buffer, fileName);
+      converted = true;
+      console.log(`Conversion done (${formatBytes(glbBuffer.length)})`);
+    }
+
+    const outputBuffer = await optimizeGLB(glbBuffer, options);
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
     const compressedSize = outputBuffer.length;
@@ -44,13 +63,14 @@ app.post('/api/optimize', upload.single('file'), async (req, res) => {
       'X-Compressed-Size': compressedSize.toString(),
       'X-Reduction': reduction,
       'X-Processing-Time': elapsed,
-      'Access-Control-Expose-Headers': 'X-Original-Size, X-Compressed-Size, X-Reduction, X-Processing-Time',
+      'X-Converted': converted ? 'true' : 'false',
+      'Access-Control-Expose-Headers': 'X-Original-Size, X-Compressed-Size, X-Reduction, X-Processing-Time, X-Converted',
     });
 
     res.send(outputBuffer);
   } catch (err) {
-    console.error(`Failed to optimize ${fileName}:`, err);
-    res.status(500).json({ error: 'Optimization failed', message: err.message });
+    console.error(`Failed to process ${fileName}:`, err);
+    res.status(500).json({ error: 'Processing failed', message: err.message });
   }
 });
 

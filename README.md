@@ -1,8 +1,23 @@
 # GLB Optimizer
 
-A self-hosted GLB/GLTF 3D model optimizer built on [glTF-Transform](https://github.com/donmccurdy/glTF-Transform). Replicates the full feature set of OptimizeGLB.com with local server-side processing.
+A self-hosted 3D model converter and optimizer built on [glTF-Transform](https://github.com/donmccurdy/glTF-Transform), [assimpjs](https://github.com/kovacsv/assimpjs), and [occt-import-js](https://github.com/kovacsv/occt-import-js).
 
 ## Features
+
+### Format Conversion
+
+Convert common 3D formats to GLB automatically before optimization:
+
+| Format | Engine | Notes |
+|---|---|---|
+| OBJ | assimpjs (WASM) | With materials (.mtl) |
+| FBX | assimpjs (WASM) | Including animations |
+| STL | assimpjs (WASM) | Mesh-only format |
+| DAE (Collada) | assimpjs (WASM) | Open XML format |
+| STEP / STP | occt-import-js (OpenCascade WASM) | CAD parametric → triangulated mesh |
+| IGES / IGS | occt-import-js (OpenCascade WASM) | CAD parametric → triangulated mesh |
+
+### Optimization
 
 - **Texture compression** — Convert to WebP, JPEG, PNG, or AVIF with configurable max resolution
 - **Deduplication** — Remove duplicate accessors, meshes, textures, and materials
@@ -14,29 +29,38 @@ A self-hosted GLB/GLTF 3D model optimizer built on [glTF-Transform](https://gith
 - **Join** — Merge compatible primitives to reduce draw calls
 - **Weld** — Merge bitwise-identical vertices
 
-## Setup
+## Getting Started
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) v18 or later
+
+### Install and run
 
 ```bash
+git clone https://github.com/jensbackvall/glb-optimiser.git
+cd glb-optimiser
 npm install
-```
-
-## Usage
-
-### Web Dashboard
-
-```bash
 npm start
-# Open http://localhost:3000
 ```
 
-### CLI
+Then open [http://localhost:3000](http://localhost:3000) in your browser.
+
+Drop any supported 3D file (GLB, OBJ, FBX, STL, DAE, STEP, STP, IGES), adjust settings if needed via "Advanced Settings", and click **Compress Model**. Non-GLB formats are automatically converted first. The default compression (dedup + prune + WebP textures at 1024px) is safe for all models including those with animations.
+
+## CLI
 
 ```bash
-# Basic optimization (dedup + prune + WebP textures)
+# Optimize a GLB file
 node src/cli.js model.glb
 
-# Custom output path
-node src/cli.js model.glb output.glb
+# Convert and optimize an OBJ/FBX/STL/STEP file
+node src/cli.js model.obj
+node src/cli.js model.fbx output.glb
+node src/cli.js part.step --all
+
+# Convert only (no optimization)
+node src/cli.js model.fbx --convert-only
 
 # All optimizations enabled
 node src/cli.js model.glb --all
@@ -49,8 +73,9 @@ node src/cli.js model.glb --draco --simplify --simplify-ratio 0.5 --weld --textu
 
 | Flag | Description | Default |
 |---|---|---|
+| `--convert-only` | Convert to GLB without optimizing | off |
 | `--texture-format` | `webp`, `jpeg`, `png`, `avif` | `webp` |
-| `--texture-size` | `512`, `1024`, `2048`, `4096` | `2048` |
+| `--texture-size` | `512`, `1024`, `2048`, `4096` | `1024` |
 | `--no-dedup` | Skip duplicate removal | enabled |
 | `--no-prune` | Skip unused resource removal | enabled |
 | `--draco` | Enable Draco mesh compression | off |
@@ -71,7 +96,7 @@ import { readFileSync, writeFileSync } from 'fs';
 const input = readFileSync('model.glb');
 const output = await optimizeGLB(input, {
   textureFormat: 'webp',
-  textureSize: 2048,
+  textureSize: 1024,
   dedup: true,
   prune: true,
   draco: true,
@@ -108,5 +133,7 @@ The optimizer applies transforms in this order (when enabled):
 - [sharp](https://www.npmjs.com/package/sharp) — Image processing for texture compression
 - [draco3dgltf](https://www.npmjs.com/package/draco3dgltf) — Draco encoder/decoder
 - [meshoptimizer](https://www.npmjs.com/package/meshoptimizer) — Mesh simplification
+- [assimpjs](https://www.npmjs.com/package/assimpjs) — OBJ/FBX/STL/DAE conversion (Assimp WASM)
+- [occt-import-js](https://www.npmjs.com/package/occt-import-js) — STEP/IGES conversion (OpenCascade WASM)
 - [express](https://www.npmjs.com/package/express) — Web server
 - [multer](https://www.npmjs.com/package/multer) — File upload handling

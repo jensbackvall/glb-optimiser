@@ -481,15 +481,16 @@
 <body>
   <div class="container">
     <h1>GLB Optimizer</h1>
-    <p class="subtitle">Compress and optimize your GLB/GLTF 3D models</p>
+    <p class="subtitle">Convert, compress and optimize your 3D models</p>
 
     <div class="drop-zone" id="dropZone">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
       </svg>
-      <p>Drag and drop <strong>GLB/GLTF</strong> files here</p>
+      <p>Drag and drop <strong>3D model</strong> files here</p>
+      <p style="font-size: 0.8rem; margin-top: 0.25rem;">GLB, GLTF, OBJ, FBX, STL, DAE, STEP, STP, IGES</p>
       <p>or <span class="browse">browse files</span></p>
-      <input type="file" id="fileInput" accept=".glb,.gltf" multiple>
+      <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.fbx,.stl,.dae,.step,.stp,.iges,.igs" multiple>
     </div>
 
     <div class="staged-files" id="stagedFiles">
@@ -690,11 +691,15 @@
     function updateStagedUI() {
       stagedList.innerHTML = '';
       stagedFiles.forEach((file, idx) => {
+        const willConvert = CONVERT_EXTENSIONS.includes(getExt(file.name));
+        const convertBadge = willConvert
+          ? `<span class="badge badge-pending" style="margin-left: 0.5rem;">convert → GLB</span>`
+          : '';
         const item = document.createElement('div');
         item.className = 'staged-file-item';
         item.innerHTML = `
           <div class="staged-file-info">
-            <span class="staged-file-name">${file.name}</span>
+            <span class="staged-file-name">${file.name}</span>${convertBadge}
             <span class="staged-file-size">${formatBytes(file.size)}</span>
           </div>
           <button class="btn-remove" data-idx="${idx}" title="Remove file">&times;</button>
@@ -706,7 +711,13 @@
       stagedFilesEl.classList.toggle('visible', hasFiles);
       compressBar.classList.toggle('visible', hasFiles);
       fileCountEl.textContent = `${stagedFiles.length} file${stagedFiles.length !== 1 ? 's' : ''} queued`;
-      compressBtn.textContent = stagedFiles.length === 1 ? 'Compress Model' : `Compress ${stagedFiles.length} Models`;
+      const anyNeedConversion = stagedFiles.some(f => CONVERT_EXTENSIONS.includes(getExt(f.name)));
+      if (stagedFiles.length === 1) {
+        compressBtn.textContent = anyNeedConversion ? 'Convert & Optimise' : 'Optimise';
+      } else {
+        const label = anyNeedConversion ? 'Convert & Optimise' : 'Optimise';
+        compressBtn.textContent = `${label} ${stagedFiles.length} Models`;
+      }
     }
 
     stagedList.addEventListener('click', (e) => {
@@ -760,9 +771,17 @@
       fileInput.value = '';
     });
 
+    const SUPPORTED_EXTENSIONS = ['.glb', '.gltf', '.obj', '.fbx', '.stl', '.dae', '.step', '.stp', '.iges', '.igs'];
+    const CONVERT_EXTENSIONS = ['.obj', '.fbx', '.stl', '.dae', '.step', '.stp', '.iges', '.igs'];
+
+    function getExt(name) {
+      const dot = name.lastIndexOf('.');
+      return dot === -1 ? '' : name.slice(dot).toLowerCase();
+    }
+
     function stageFiles(files) {
       const validFiles = Array.from(files).filter(f =>
-        f.name.endsWith('.glb') || f.name.endsWith('.gltf')
+        SUPPORTED_EXTENSIONS.includes(getExt(f.name))
       );
       if (validFiles.length === 0) return;
       stagedFiles.push(...validFiles);
@@ -823,16 +842,18 @@
         const reduction = response.headers.get('X-Reduction');
         const time = response.headers.get('X-Processing-Time');
 
+        const converted = response.headers.get('X-Converted') === 'true';
         const url = URL.createObjectURL(blob);
         const outputName = file.name.replace(/\.\w+$/, '-optimized.glb');
 
         completedFiles.push({ url, name: outputName });
         actionsBar.style.display = 'flex';
 
+        const statusLabel = converted ? `Converted & Done (${time}s)` : `Done (${time}s)`;
         const cells = row.querySelectorAll('td');
         cells[2].textContent = formatBytes(compressedSize);
         cells[3].textContent = `${reduction}%`;
-        cells[4].innerHTML = `<span class="badge badge-success">Done (${time}s)</span>`;
+        cells[4].innerHTML = `<span class="badge badge-success">${statusLabel}</span>`;
         progressFill.style.width = '100%';
         cells[6].innerHTML = `<button class="btn btn-primary btn-sm" onclick="downloadFile('${url}', '${outputName}')">Download</button>`;
       } catch (err) {
