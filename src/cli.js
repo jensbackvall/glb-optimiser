@@ -9,7 +9,7 @@ const HELP = `
 Usage: glb-optimize <input> [output.glb] [options]
 
 Supported input formats:
-  GLB, GLTF, OBJ, FBX, STL, DAE, STEP, STP, IGES
+  GLB, GLTF, OBJ, FBX, STL, DAE, STEP, STP, IGES, ZIP (glTF)
 
   Non-GLB formats are automatically converted to GLB before optimization.
 
@@ -108,7 +108,7 @@ async function main() {
 
   if (!isSupported(fileName)) {
     console.error(`Error: Unsupported format "${extname(inputPath)}".`);
-    console.error('Supported: .glb, .gltf, .obj, .fbx, .stl, .dae, .step, .stp, .iges');
+    console.error('Supported: .glb, .gltf, .obj, .fbx, .stl, .dae, .step, .stp, .iges, .zip');
     process.exit(1);
   }
 

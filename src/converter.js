@@ -1,12 +1,19 @@
 import { createRequire } from 'module';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { Document, NodeIO } from '@gltf-transform/core';
+import { unpartition } from '@gltf-transform/functions';
+import AdmZip from 'adm-zip';
 
 const require = createRequire(import.meta.url);
 
 const ASSIMP_FORMATS = new Set(['.obj', '.fbx', '.dae', '.stl']);
 const OCCT_FORMATS = new Set(['.step', '.stp', '.iges', '.igs']);
-const GLB_FORMATS = new Set(['.glb', '.gltf']);
-const ALL_CONVERTIBLE = new Set([...ASSIMP_FORMATS, ...OCCT_FORMATS]);
+const ZIP_FORMATS = new Set(['.zip']);
+const GLTF_FORMATS = new Set(['.gltf']);
+const GLB_FORMATS = new Set(['.glb']);
+const ALL_CONVERTIBLE = new Set([...ASSIMP_FORMATS, ...OCCT_FORMATS, ...ZIP_FORMATS, ...GLTF_FORMATS]);
 const ALL_SUPPORTED = new Set([...ALL_CONVERTIBLE, ...GLB_FORMATS]);
 
 export function getExtension(filename) {
@@ -150,11 +157,60 @@ async function buildGLBFromOCCTResult(result) {
   return Buffer.from(glbBuffer);
 }
 
+async function convertFromGltf(buffer, filename) {
+  const tempDir = mkdtempSync(join(tmpdir(), 'gltf-'));
+  const gltfPath = join(tempDir, filename);
+  try {
+    writeFileSync(gltfPath, buffer);
+    const io = new NodeIO();
+    const doc = await io.read(gltfPath);
+    await doc.transform(unpartition());
+    const glbBuffer = await io.writeBinary(doc);
+    return Buffer.from(glbBuffer);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function convertFromZip(buffer) {
+  const zip = new AdmZip(buffer);
+  const entries = zip.getEntries();
+  const gltfEntry = entries.find((e) => {
+    const name = e.entryName.toLowerCase();
+    return name.endsWith('.gltf') && !e.isDirectory;
+  });
+
+  if (!gltfEntry) {
+    throw new Error('No .gltf file found in zip');
+  }
+
+  const tempDir = mkdtempSync(join(tmpdir(), 'gltf-zip-'));
+  try {
+    zip.extractAllTo(tempDir, true);
+    const gltfPath = join(tempDir, gltfEntry.entryName);
+    const io = new NodeIO();
+    const doc = await io.read(gltfPath);
+    await doc.transform(unpartition());
+    const glbBuffer = await io.writeBinary(doc);
+    return Buffer.from(glbBuffer);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
 export async function convertToGLB(buffer, filename) {
   const ext = getExtension(filename);
 
   if (GLB_FORMATS.has(ext)) {
     return Buffer.from(buffer);
+  }
+
+  if (GLTF_FORMATS.has(ext)) {
+    return convertFromGltf(buffer, filename);
+  }
+
+  if (ZIP_FORMATS.has(ext)) {
+    return convertFromZip(buffer);
   }
 
   if (ASSIMP_FORMATS.has(ext)) {

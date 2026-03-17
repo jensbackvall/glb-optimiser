@@ -10,12 +10,16 @@ Convert common 3D formats to GLB automatically before optimization:
 
 | Format | Engine | Notes |
 |---|---|---|
+| GLTF | NodeIO + unpartition | JSON glTF → binary GLB; merges multiple buffers |
 | OBJ | assimpjs (WASM) | With materials (.mtl) |
 | FBX | assimpjs (WASM) | Including animations |
 | STL | assimpjs (WASM) | Mesh-only format |
 | DAE (Collada) | assimpjs (WASM) | Open XML format |
 | STEP / STP | occt-import-js (OpenCascade WASM) | CAD parametric → triangulated mesh |
 | IGES / IGS | occt-import-js (OpenCascade WASM) | CAD parametric → triangulated mesh |
+| ZIP | NodeIO + unpartition | glTF package (.gltf + .bin + textures) → bundled GLB |
+
+**Note:** glTF files with multiple buffers (e.g. embedded base64 data) are automatically merged with `unpartition()` before GLB output. For glTF that references external `.bin` or image files, zip the folder and upload the ZIP.
 
 ### Optimization
 
@@ -56,7 +60,7 @@ npm start
 
 Then open [http://localhost:3000](http://localhost:3000) in your browser.
 
-Drop any supported 3D file (GLB, OBJ, FBX, STL, DAE, STEP, STP, IGES), adjust settings if needed via "Advanced Settings", and click **Optimise** (or **Convert & Optimise** for non-GLB files). Non-GLB formats are automatically converted first. The default compression (dedup + prune + WebP textures at 1024px) is safe for all models including those with animations. Use the theme toggle in the top-right to switch between dark and light mode.
+Drop any supported 3D file (GLB, GLTF, OBJ, FBX, STL, DAE, STEP, STP, IGES, or a ZIP containing glTF assets). GLTF and other non-GLB formats are automatically converted to GLB first. Adjust settings if needed via "Advanced Settings", then click **Optimise** (or **Convert & Optimise** when non-GLB files are queued). The default compression (dedup + prune + WebP textures at 1024px) is safe for all models including those with animations. Use the theme toggle in the top-right to switch between dark and light mode.
 
 ## CLI
 
@@ -64,10 +68,12 @@ Drop any supported 3D file (GLB, OBJ, FBX, STL, DAE, STEP, STP, IGES), adjust se
 # Optimize a GLB file
 node src/cli.js model.glb
 
-# Convert and optimize an OBJ/FBX/STL/STEP file
+# Convert and optimize a GLTF/OBJ/FBX/STL/STEP/ZIP file
+node src/cli.js model.gltf
 node src/cli.js model.obj
 node src/cli.js model.fbx output.glb
 node src/cli.js part.step --all
+node src/cli.js model.zip
 
 # Convert only (no optimization)
 node src/cli.js model.fbx --convert-only
@@ -123,6 +129,16 @@ writeFileSync('model-optimized.glb', output);
 
 ## How It Works
 
+### Conversion (non-GLB inputs)
+
+For GLTF, ZIP, OBJ, FBX, STL, DAE, STEP, and IGES files, the converter runs first:
+
+- **GLTF / ZIP** — Read with NodeIO, apply `unpartition()` to merge multiple buffers into one (required for GLB), then write binary GLB
+- **OBJ, FBX, STL, DAE** — Convert via assimpjs (WASM) to GLB
+- **STEP, STP, IGES** — Tessellate via occt-import-js (OpenCascade WASM), build glTF document, write GLB
+
+### Optimization
+
 The optimizer applies transforms in this order (when enabled):
 
 1. **dedup** — Identify and link shared resources
@@ -145,5 +161,6 @@ The optimizer applies transforms in this order (when enabled):
 - [meshoptimizer](https://www.npmjs.com/package/meshoptimizer) — Mesh simplification
 - [assimpjs](https://www.npmjs.com/package/assimpjs) — OBJ/FBX/STL/DAE conversion (Assimp WASM)
 - [occt-import-js](https://www.npmjs.com/package/occt-import-js) — STEP/IGES conversion (OpenCascade WASM)
+- [adm-zip](https://www.npmjs.com/package/adm-zip) — ZIP extraction for glTF packages
 - [express](https://www.npmjs.com/package/express) — Web server
 - [multer](https://www.npmjs.com/package/multer) — File upload handling
