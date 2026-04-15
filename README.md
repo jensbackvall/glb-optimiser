@@ -2,6 +2,65 @@
 
 A self-hosted 3D model converter and optimizer built on [glTF-Transform](https://github.com/donmccurdy/glTF-Transform), [assimpjs](https://github.com/kovacsv/assimpjs), and [occt-import-js](https://github.com/kovacsv/occt-import-js).
 
+## How to run this locally
+
+### 1. Install Node.js
+
+Download and install **Node.js** (version 18 or later) from [nodejs.org](https://nodejs.org/). Pick the **LTS** version — the installer is straightforward (just click through the steps).
+
+To check if you already have it, open a terminal and run:
+
+```bash
+node --version
+```
+
+If you see `v18` or higher, you're good to go.
+
+### 2. Download this project
+
+**Option A — Download as ZIP (easiest):**
+
+1. Go to the GitHub repository page
+2. Click the green **Code** button
+3. Click **Download ZIP**
+4. Unzip the downloaded file to a folder of your choice
+
+**Option B — Clone with git:**
+
+```bash
+git clone https://github.com/jensbackvall/glb-optimiser.git
+cd glb-optimiser
+```
+
+### 3. Open a terminal in the project folder
+
+- **macOS:** Open the **Terminal** app, then type `cd ` (with a space) and drag the project folder into the terminal window. Press Enter.
+- **Windows:** Open the project folder in File Explorer, right-click on an empty area, and select **Open in Terminal**.
+
+### 4. Install dependencies
+
+Run this once (and again only if the project is updated):
+
+```bash
+npm install
+```
+
+This downloads everything the app needs. It may take a minute or two.
+
+### 5. Start the app
+
+```bash
+npm start
+```
+
+You should see a message saying the server is running.
+
+### 6. Open in your browser
+
+Go to [http://localhost:3000](http://localhost:3000). You can now drag-and-drop 3D files onto the page to convert and optimise them.
+
+To stop the app, press `Ctrl+C` in the terminal.
+
 ## Features
 
 ### Format Conversion
@@ -42,25 +101,6 @@ Convert common 3D formats to GLB automatically before optimization:
 - **Dark / Light mode** toggle with localStorage persistence
 - **Batch processing** with per-file progress, status, and individual download buttons
 - **Smart button labels** — shows "Convert & Optimise" for non-GLB files, "Optimise" for GLB files
-
-## Getting Started
-
-### Prerequisites
-
-- [Node.js](https://nodejs.org/) v18 or later
-
-### Install and run
-
-```bash
-git clone https://github.com/jensbackvall/glb-optimiser.git
-cd glb-optimiser
-npm install
-npm start
-```
-
-Then open [http://localhost:3000](http://localhost:3000) in your browser.
-
-Drop any supported 3D file (GLB, GLTF, OBJ, FBX, STL, DAE, STEP, STP, IGES, or a ZIP containing glTF assets). GLTF and other non-GLB formats are automatically converted to GLB first. Adjust settings if needed via "Advanced Settings", then click **Optimise** (or **Convert & Optimise** when non-GLB files are queued). The default compression (dedup + prune + WebP textures at 1024px) is safe for all models including those with animations. Use the theme toggle in the top-right to switch between dark and light mode.
 
 ## CLI
 
