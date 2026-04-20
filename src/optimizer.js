@@ -13,7 +13,21 @@ import {
 } from '@gltf-transform/functions';
 import draco3d from 'draco3dgltf';
 import { MeshoptSimplifier } from 'meshoptimizer';
-import sharp from 'sharp';
+import sharpBase from 'sharp';
+
+const MIN_TEXTURE_DIM = 1;
+
+function safeSharp(input) {
+  const inst = sharpBase(input);
+  const origResize = inst.resize.bind(inst);
+  inst.resize = (width, height, opts) => {
+    const w = Math.max(Math.round(width) || MIN_TEXTURE_DIM, MIN_TEXTURE_DIM);
+    const h = Math.max(Math.round(height) || MIN_TEXTURE_DIM, MIN_TEXTURE_DIM);
+    return origResize(w, h, opts);
+  };
+  return inst;
+}
+Object.assign(safeSharp, sharpBase);
 
 const DEFAULT_OPTIONS = {
   textureFormat: 'webp',
@@ -84,7 +98,7 @@ export async function optimizeGLB(inputBuffer, userOptions = {}) {
 
   if (options.textureFormat) {
     const textureOptions = {
-      encoder: sharp,
+      encoder: safeSharp,
       targetFormat: options.textureFormat,
       slots: /^(?!normalTexture).*$/,
     };
