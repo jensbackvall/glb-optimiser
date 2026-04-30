@@ -1,4 +1,4 @@
-import { NodeIO } from '@gltf-transform/core';
+import { NodeIO, ImageUtils } from '@gltf-transform/core';
 import { KHRONOS_EXTENSIONS, KHRDracoMeshCompression } from '@gltf-transform/extensions';
 import {
   dedup,
@@ -16,6 +16,39 @@ import { MeshoptSimplifier } from 'meshoptimizer';
 import sharpBase from 'sharp';
 
 const MIN_TEXTURE_DIM = 1;
+
+// ImageUtils only supports JPEG/PNG out of the box. Register WebP so that
+// textureCompress can read dimensions for resize/fitWithin on already-WebP models.
+ImageUtils.impls['image/webp'] = {
+  getSize(buffer) {
+    const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+    if (view.getUint32(0) !== 0x52494646) return null; // 'RIFF'
+    const tag = String.fromCharCode(
+      view.getUint8(8), view.getUint8(9), view.getUint8(10), view.getUint8(11)
+    );
+    if (tag !== 'WEBP') return null;
+    const chunkTag = String.fromCharCode(
+      view.getUint8(12), view.getUint8(13), view.getUint8(14)
+    );
+    const byte15 = view.getUint8(15);
+    if (chunkTag === 'VP8' && byte15 === 0x20) {
+      return [view.getUint16(26, true) & 0x3fff, view.getUint16(28, true) & 0x3fff];
+    }
+    if (chunkTag === 'VP8' && byte15 === 0x4C) {
+      const bits = view.getUint32(21, true);
+      return [(bits & 0x3fff) + 1, ((bits >> 14) & 0x3fff) + 1];
+    }
+    if (chunkTag === 'VP8' && byte15 === 0x58) {
+      return [
+        1 + (view.getUint8(24) | (view.getUint8(25) << 8) | (view.getUint8(26) << 16)),
+        1 + (view.getUint8(27) | (view.getUint8(28) << 8) | (view.getUint8(29) << 16)),
+      ];
+    }
+    return null;
+  },
+  getChannels() { return 4; },
+  getVRAMBytesPerPixel() { return 4; },
+};
 
 function safeSharp(input) {
   const inst = sharpBase(input);
