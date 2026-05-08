@@ -1,5 +1,6 @@
 import express from 'express';
 import multer from 'multer';
+import sharp from 'sharp';
 import { optimizeGLB, inspectGLB, formatBytes } from './optimizer.js';
 import { convertToGLB, needsConversion, isSupported, getSupportedExtensions } from './converter.js';
 import { fileURLToPath } from 'url';
@@ -149,6 +150,71 @@ app.post('/api/optimize', upload.single('file'), async (req, res) => {
       } catch {
         // best-effort cleanup
       }
+    }
+  }
+});
+
+app.post('/api/optimize-image', upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+  const options = {};
+  try {
+    if (req.body.options) Object.assign(options, JSON.parse(req.body.options));
+  } catch {
+    return res.status(400).json({ error: 'Invalid options JSON' });
+  }
+
+  const { format = 'webp', quality = 85, resizePercent = 100 } = options;
+  const originalSize = req.file.size;
+  const fileName = req.file.originalname;
+
+  try {
+    await acquireJobSlot();
+    const startTime = Date.now();
+
+    let pipeline = sharp(req.file.path);
+
+    if (resizePercent < 100) {
+      const meta = await pipeline.metadata();
+      const newWidth = Math.max(1, Math.round(meta.width * resizePercent / 100));
+      const newHeight = Math.max(1, Math.round(meta.height * resizePercent / 100));
+      pipeline = pipeline.resize(newWidth, newHeight, { kernel: 'lanczos3', fit: 'fill' });
+    }
+
+    switch (format) {
+      case 'avif': pipeline = pipeline.avif({ quality, effort: 5 }); break;
+      case 'jpeg': pipeline = pipeline.jpeg({ quality, mozjpeg: true }); break;
+      case 'png':  pipeline = pipeline.png({ compressionLevel: 9 }); break;
+      default:     pipeline = pipeline.webp({ quality, effort: 4 }); break;
+    }
+
+    const outputBuffer = await pipeline.toBuffer();
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    const compressedSize = outputBuffer.length;
+    const reduction = ((1 - compressedSize / originalSize) * 100).toFixed(1);
+
+    const extMap = { webp: '.webp', avif: '.avif', jpeg: '.jpg', png: '.png' };
+    const outExt = extMap[format] || '.webp';
+    const outName = fileName.replace(/\.[^.]+$/, `-optimized${outExt}`);
+
+    res.set({
+      'Content-Type': 'application/octet-stream',
+      'Content-Disposition': `attachment; filename="${outName}"`,
+      'X-Original-Size': originalSize.toString(),
+      'X-Compressed-Size': compressedSize.toString(),
+      'X-Reduction': reduction,
+      'X-Processing-Time': elapsed,
+      'Access-Control-Expose-Headers': 'X-Original-Size, X-Compressed-Size, X-Reduction, X-Processing-Time',
+    });
+
+    res.send(outputBuffer);
+  } catch (err) {
+    console.error(`Failed to optimize image ${fileName}:`, err);
+    res.status(500).json({ error: 'Image optimization failed', message: err.message });
+  } finally {
+    releaseJobSlot();
+    if (req.file?.path) {
+      try { await unlink(req.file.path); } catch {}
     }
   }
 });

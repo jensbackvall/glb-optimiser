@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>3D Model Converter & GLB Optimiser</title>
+  <title>3D and 2D Converter and Optimiser</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -626,27 +626,61 @@
     .advanced-section {
       margin-bottom: 1.5rem;
     }
+
+    .logo-img {
+      height: 1.8rem;
+      width: auto;
+      display: block;
+    }
+
+    .badge-image {
+      background: color-mix(in srgb, var(--accent) 15%, transparent);
+      color: var(--accent);
+    }
+
+    .badge-360 {
+      background: color-mix(in srgb, var(--success) 15%, transparent);
+      color: var(--success);
+    }
+
+    .img-dimensions-preview {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--border);
+      margin-top: 0.25rem;
+    }
+
+    .png-lossless-note {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-style: italic;
+      padding: 0.25rem 0;
+    }
   </style>
 </head>
 <body data-theme="dark">
   <div class="top-bar">
-    <h1>3D Model Converter & GLB Optimiser</h1>
+    <div style="display:flex;align-items:center;gap:1rem;">
+      <img id="logoImg" src="/logo-white.png" alt="Hololink" class="logo-img">
+      <h1>3D and 2D Converter and Optimiser</h1>
+    </div>
     <button class="theme-toggle" id="themeToggle">
       <span class="icon" id="themeIcon">&#9790;</span>
       <span id="themeLabel">Dark</span>
     </button>
   </div>
   <div class="container">
-    <p class="subtitle">Convert, compress and optimize your 3D models</p>
+    <p class="subtitle">Convert, compress and optimise 3D models and 2D images</p>
 
     <div class="drop-zone" id="dropZone">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
       </svg>
-      <p>Drag and drop <strong>3D model</strong> files here</p>
-      <p style="font-size: 0.8rem; margin-top: 0.25rem;">GLB, GLTF, OBJ, FBX, STL, DAE, STEP, STP, IGES, ZIP (glTF)</p>
+      <p>Drag and drop <strong>3D model</strong> or <strong>image</strong> files here</p>
+      <p style="font-size: 0.8rem; margin-top: 0.25rem;">GLB, GLTF, OBJ, FBX, STL, DAE, STEP, IGES, ZIP &nbsp;·&nbsp; JPEG, PNG, WebP</p>
       <p>or <span class="browse">browse files</span></p>
-      <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.fbx,.stl,.dae,.step,.stp,.iges,.igs,.zip" multiple>
+      <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.fbx,.stl,.dae,.step,.stp,.iges,.igs,.zip,.jpg,.jpeg,.png,.webp" multiple>
     </div>
 
     <div class="staged-files" id="stagedFiles">
@@ -657,7 +691,7 @@
       <div id="stagedList"></div>
     </div>
 
-    <div class="advanced-section">
+    <div class="advanced-section" id="advancedSection">
       <button class="advanced-toggle" id="advancedToggle">
         <span class="chevron">&#9654;</span> Advanced Settings
       </button>
@@ -796,6 +830,53 @@
       </div>
     </div>
 
+    <div class="advanced-section" id="imageSettingsSection" style="display:none;">
+      <button class="advanced-toggle" id="imageSettingsToggle">
+        <span class="chevron">&#9654;</span> Image Settings
+      </button>
+      <div class="advanced-panel" id="imageSettingsPanel">
+        <div class="options-grid" style="margin-top:1rem;">
+          <div class="option-group">
+            <h3>Output Format</h3>
+            <div class="option-row">
+              <label>Format</label>
+              <select id="imgFormat">
+                <option value="webp" selected>WebP (recommended)</option>
+                <option value="avif">AVIF (smallest)</option>
+                <option value="jpeg">JPEG</option>
+                <option value="png">PNG (lossless)</option>
+              </select>
+            </div>
+            <div class="option-row" id="imgQualityRow">
+              <label>Quality</label>
+              <div style="display:flex;align-items:center;gap:0.5rem;">
+                <input type="range" id="imgQuality" min="40" max="100" step="1" value="85">
+                <span id="imgQualityValue" style="font-size:0.85rem;min-width:2rem;color:var(--text-muted);">85</span>
+              </div>
+            </div>
+            <p class="png-lossless-note" id="imgPngNote" style="display:none;">PNG is lossless — quality does not apply.</p>
+          </div>
+
+          <div class="option-group">
+            <h3>Resize</h3>
+            <div class="option-row">
+              <label>Scale</label>
+              <div style="display:flex;align-items:center;gap:0.5rem;">
+                <input type="range" id="imgResize" min="10" max="100" step="5" value="100">
+                <span id="imgResizeValue" style="font-size:0.85rem;min-width:2.5rem;color:var(--text-muted);">100%</span>
+              </div>
+            </div>
+            <div id="imgDimensionsPreview" class="img-dimensions-preview" style="display:none;"></div>
+          </div>
+        </div>
+
+        <div class="note visible" id="img360Note" style="display:none;">
+          <strong>360° panorama detected</strong> — aspect ratio will be preserved exactly during resize.
+          For AR/VR on smartphones, keep output above 2048 × 1024 for a crisp experience.
+        </div>
+      </div>
+    </div>
+
     <div class="compress-bar" id="compressBar">
       <span class="file-count" id="fileCount"></span>
       <button class="btn btn-compress" id="compressBtn">Optimise</button>
@@ -831,6 +912,7 @@
     function setTheme(theme) {
       document.body.setAttribute('data-theme', theme);
       localStorage.setItem('theme', theme);
+      document.getElementById('logoImg').src = theme === 'dark' ? '/logo-white.png' : '/logo-black.png';
       if (theme === 'light') {
         themeIcon.textContent = '\u2600';
         themeLabel.textContent = 'Light';
@@ -880,6 +962,7 @@
     let stagedFiles = [];
     const completedFiles = [];
     const perFileMaterials = new Map();
+    const fileInfo = new Map();
 
     function formatBytes(bytes) {
       if (bytes === 0) return '0 B';
@@ -920,15 +1003,23 @@
     function updateStagedUI() {
       stagedList.innerHTML = '';
       stagedFiles.forEach((file, idx) => {
-        const willConvert = CONVERT_EXTENSIONS.includes(getExt(file.name));
-        const convertBadge = willConvert
-          ? `<span class="badge badge-pending" style="margin-left: 0.5rem;">convert → GLB</span>`
-          : '';
+        const ext = getExt(file.name);
+        const isImage = IMAGE_EXTENSIONS.includes(ext);
+        const info = fileInfo.get(file);
+        let badge = '';
+        if (isImage) {
+          badge = `<span class="badge badge-image" style="margin-left:0.5rem;">image</span>`;
+          if (info?.is360) {
+            badge += `<span class="badge badge-360" style="margin-left:0.25rem;">360°</span>`;
+          }
+        } else if (CONVERT_EXTENSIONS.includes(ext)) {
+          badge = `<span class="badge badge-pending" style="margin-left: 0.5rem;">convert → GLB</span>`;
+        }
         const item = document.createElement('div');
         item.className = 'staged-file-item';
         item.innerHTML = `
           <div class="staged-file-info">
-            <span class="staged-file-name">${file.name}</span>${convertBadge}
+            <span class="staged-file-name">${file.name}</span>${badge}
             <span class="staged-file-size">${formatBytes(file.size)}</span>
           </div>
           <button class="btn-remove" data-idx="${idx}" title="Remove file">&times;</button>
@@ -937,16 +1028,25 @@
       });
 
       const hasFiles = stagedFiles.length > 0;
+      const hasImages = stagedFiles.some(f => IMAGE_EXTENSIONS.includes(getExt(f.name)));
+      const has3D = stagedFiles.some(f => MODEL_EXTENSIONS.includes(getExt(f.name)));
+
       stagedFilesEl.classList.toggle('visible', hasFiles);
       compressBar.classList.toggle('visible', hasFiles);
+      document.getElementById('advancedSection').style.display = has3D ? '' : 'none';
+      document.getElementById('imageSettingsSection').style.display = hasImages ? '' : 'none';
+
       fileCountEl.textContent = `${stagedFiles.length} file${stagedFiles.length !== 1 ? 's' : ''} queued`;
       const anyNeedConversion = stagedFiles.some(f => CONVERT_EXTENSIONS.includes(getExt(f.name)));
       if (stagedFiles.length === 1) {
         compressBtn.textContent = anyNeedConversion ? 'Convert & Optimise' : 'Optimise';
       } else {
         const label = anyNeedConversion ? 'Convert & Optimise' : 'Optimise';
-        compressBtn.textContent = `${label} ${stagedFiles.length} Models`;
+        compressBtn.textContent = `${label} ${stagedFiles.length} Files`;
       }
+
+      updateImgDimensionsPreview();
+      update360Note();
     }
 
     stagedList.addEventListener('click', (e) => {
@@ -954,6 +1054,7 @@
       if (!removeBtn) return;
       const idx = parseInt(removeBtn.dataset.idx, 10);
       perFileMaterials.delete(stagedFiles[idx]);
+      fileInfo.delete(stagedFiles[idx]);
       stagedFiles.splice(idx, 1);
       updateStagedUI();
       updatePerMaterialUI();
@@ -1081,6 +1182,7 @@
 
     document.getElementById('clearAll').addEventListener('click', () => {
       perFileMaterials.clear();
+      fileInfo.clear();
       stagedFiles = [];
       updateStagedUI();
       updatePerMaterialUI();
@@ -1124,6 +1226,56 @@
       });
     }
 
+    const imageSettingsToggle = document.getElementById('imageSettingsToggle');
+    const imageSettingsPanel = document.getElementById('imageSettingsPanel');
+
+    imageSettingsToggle.addEventListener('click', () => {
+      imageSettingsToggle.classList.toggle('open');
+      imageSettingsPanel.classList.toggle('open');
+    });
+
+    document.getElementById('imgFormat').addEventListener('change', (e) => {
+      const isPng = e.target.value === 'png';
+      document.getElementById('imgQualityRow').style.opacity = isPng ? '0.4' : '';
+      document.getElementById('imgQualityRow').style.pointerEvents = isPng ? 'none' : '';
+      document.getElementById('imgPngNote').style.display = isPng ? '' : 'none';
+    });
+
+    document.getElementById('imgQuality').addEventListener('input', (e) => {
+      document.getElementById('imgQualityValue').textContent = e.target.value;
+    });
+
+    document.getElementById('imgResize').addEventListener('input', (e) => {
+      document.getElementById('imgResizeValue').textContent = `${e.target.value}%`;
+      updateImgDimensionsPreview();
+    });
+
+    function updateImgDimensionsPreview() {
+      const preview = document.getElementById('imgDimensionsPreview');
+      const imageStagedFiles = stagedFiles.filter(f => IMAGE_EXTENSIONS.includes(getExt(f.name)));
+      if (imageStagedFiles.length !== 1) { preview.style.display = 'none'; return; }
+      const info = fileInfo.get(imageStagedFiles[0]);
+      if (!info?.width) { preview.style.display = 'none'; return; }
+      const pct = parseInt(document.getElementById('imgResize').value, 10);
+      const newW = Math.max(1, Math.round(info.width * pct / 100));
+      const newH = Math.max(1, Math.round(info.height * pct / 100));
+      preview.textContent = `${info.width} × ${info.height}  →  ${newW} × ${newH} px`;
+      preview.style.display = '';
+    }
+
+    function update360Note() {
+      const any360 = stagedFiles.some(f => fileInfo.get(f)?.is360);
+      document.getElementById('img360Note').style.display = any360 ? '' : 'none';
+    }
+
+    function getImageOptions() {
+      return {
+        format: document.getElementById('imgFormat').value,
+        quality: parseInt(document.getElementById('imgQuality').value, 10),
+        resizePercent: parseInt(document.getElementById('imgResize').value, 10),
+      };
+    }
+
     dropZone.addEventListener('click', () => fileInput.click());
     dropZone.querySelector('.browse').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1150,7 +1302,9 @@
       fileInput.value = '';
     });
 
-    const SUPPORTED_EXTENSIONS = ['.glb', '.gltf', '.obj', '.fbx', '.stl', '.dae', '.step', '.stp', '.iges', '.igs', '.zip'];
+    const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp'];
+    const MODEL_EXTENSIONS = ['.glb', '.gltf', '.obj', '.fbx', '.stl', '.dae', '.step', '.stp', '.iges', '.igs', '.zip'];
+    const SUPPORTED_EXTENSIONS = [...MODEL_EXTENSIONS, ...IMAGE_EXTENSIONS];
     const CONVERT_EXTENSIONS = ['.gltf', '.obj', '.fbx', '.stl', '.dae', '.step', '.stp', '.iges', '.igs', '.zip'];
 
     function getExt(name) {
@@ -1163,10 +1317,33 @@
         SUPPORTED_EXTENSIONS.includes(getExt(f.name))
       );
       if (validFiles.length === 0) return;
+
+      for (const f of validFiles) {
+        if (IMAGE_EXTENSIONS.includes(getExt(f.name))) {
+          fileInfo.set(f, { type: 'image', width: null, height: null, is360: false });
+          detectImageDimensions(f).then(() => {
+            updateStagedUI();
+          });
+        }
+      }
+
       stagedFiles.push(...validFiles);
       updateStagedUI();
       if (perMaterialBody.classList.contains('open')) {
         updatePerMaterialUI();
+      }
+    }
+
+    async function detectImageDimensions(file) {
+      try {
+        const bitmap = await createImageBitmap(file);
+        const { width, height } = bitmap;
+        bitmap.close();
+        const ratio = width / height;
+        const is360 = Math.abs(ratio - 2.0) / 2.0 < 0.05;
+        fileInfo.set(file, { type: 'image', width, height, is360 });
+      } catch {
+        fileInfo.set(file, { type: 'image', width: null, height: null, is360: false });
       }
     }
 
@@ -1182,6 +1359,11 @@
     });
 
     async function processFile(file) {
+      if (IMAGE_EXTENSIONS.includes(getExt(file.name))) return processImageFile(file);
+      return process3DFile(file);
+    }
+
+    async function process3DFile(file) {
       const row = document.createElement('tr');
       row.innerHTML = `
         <td>${file.name}</td>
@@ -1236,6 +1418,69 @@
         cells[2].textContent = formatBytes(compressedSize);
         cells[3].textContent = `${reduction}%`;
         cells[4].innerHTML = `<span class="badge badge-success">${statusLabel}</span>`;
+        progressFill.style.width = '100%';
+        cells[6].innerHTML = `<button class="btn btn-primary btn-sm" onclick="downloadFile('${url}', '${outputName}')">Download</button>`;
+      } catch (err) {
+        clearInterval(progressInterval);
+        const cells = row.querySelectorAll('td');
+        cells[4].innerHTML = `<span class="badge badge-error">Failed</span>`;
+        cells[6].textContent = err.message;
+        progressFill.style.width = '0%';
+      }
+    }
+
+    async function processImageFile(file) {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${file.name}</td>
+        <td>${formatBytes(file.size)}</td>
+        <td>-</td>
+        <td>-</td>
+        <td><span class="badge badge-pending">Processing</span></td>
+        <td><div class="progress-bar"><div class="fill" style="width: 0%"></div></div></td>
+        <td>-</td>
+      `;
+      resultsBody.appendChild(row);
+
+      const progressFill = row.querySelector('.fill');
+      let progress = 0;
+      const progressInterval = setInterval(() => {
+        progress = Math.min(progress + Math.random() * 15, 90);
+        progressFill.style.width = `${progress}%`;
+      }, 400);
+
+      const imgOpts = getImageOptions();
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('options', JSON.stringify(imgOpts));
+
+      const extMap = { webp: '.webp', avif: '.avif', jpeg: '.jpg', png: '.png' };
+      const outExt = extMap[imgOpts.format] || '.webp';
+      const outputName = file.name.replace(/\.[^.]+$/, `-optimized${outExt}`);
+
+      try {
+        const response = await fetch('/api/optimize-image', { method: 'POST', body: formData });
+        clearInterval(progressInterval);
+
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.message || 'Image optimization failed');
+        }
+
+        const blob = await response.blob();
+        const originalSize = parseInt(response.headers.get('X-Original-Size'), 10);
+        const compressedSize = parseInt(response.headers.get('X-Compressed-Size'), 10);
+        const reduction = response.headers.get('X-Reduction');
+        const time = response.headers.get('X-Processing-Time');
+
+        const url = URL.createObjectURL(blob);
+        completedFiles.push({ url, name: outputName });
+        actionsBar.style.display = 'flex';
+
+        const cells = row.querySelectorAll('td');
+        cells[2].textContent = formatBytes(compressedSize);
+        cells[3].textContent = `${reduction}%`;
+        cells[4].innerHTML = `<span class="badge badge-success">Done (${time}s)</span>`;
         progressFill.style.width = '100%';
         cells[6].innerHTML = `<button class="btn btn-primary btn-sm" onclick="downloadFile('${url}', '${outputName}')">Download</button>`;
       } catch (err) {
