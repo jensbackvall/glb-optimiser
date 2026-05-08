@@ -395,6 +395,13 @@
       vertical-align: middle;
     }
 
+    .results-table td.col-filename {
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
     .results-table tr:last-child td {
       border-bottom: none;
     }
@@ -1366,7 +1373,7 @@
     async function process3DFile(file) {
       const row = document.createElement('tr');
       row.innerHTML = `
-        <td>${file.name}</td>
+        <td class="col-filename" title="${file.name}">${file.name}</td>
         <td>${formatBytes(file.size)}</td>
         <td>-</td>
         <td>-</td>
@@ -1432,7 +1439,7 @@
     async function processImageFile(file) {
       const row = document.createElement('tr');
       row.innerHTML = `
-        <td>${file.name}</td>
+        <td class="col-filename" title="${file.name}">${file.name}</td>
         <td>${formatBytes(file.size)}</td>
         <td>-</td>
         <td>-</td>
