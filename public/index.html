@@ -256,7 +256,7 @@
       cursor: pointer;
     }
 
-    .simplify-controls {
+    .simplify-controls, .roughness-controls {
       display: none;
       align-items: center;
       gap: 0.5rem;
@@ -264,13 +264,110 @@
       padding-left: 1.5rem;
     }
 
-    .simplify-controls.visible { display: flex; }
+    .simplify-controls.visible, .roughness-controls.visible { display: flex; }
 
-    .simplify-controls span {
+    .simplify-controls span, .roughness-controls span {
       font-size: 0.8rem;
       color: var(--text-muted);
       min-width: 2.5rem;
       text-align: right;
+    }
+
+    .roughness-hint {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+
+    .material-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.35rem 0;
+      font-size: 0.85rem;
+    }
+
+    .material-row + .material-row { border-top: 1px solid var(--border); }
+
+    .material-name {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .material-row input[type="range"] { width: 80px; }
+
+    .material-row .mat-val {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      min-width: 2rem;
+      text-align: right;
+    }
+
+    .per-material-section {
+      margin-top: 1rem;
+      border-top: 1px solid var(--border);
+      padding-top: 0.75rem;
+    }
+
+    .per-material-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0;
+      transition: color 0.2s;
+    }
+
+    .per-material-toggle:hover { color: var(--text); }
+
+    .per-material-toggle .chevron {
+      transition: transform 0.2s;
+      font-size: 0.65rem;
+    }
+
+    .per-material-toggle.open .chevron {
+      transform: rotate(90deg);
+    }
+
+    .per-material-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+
+    .per-material-body.open {
+      max-height: 2000px;
+      overflow-y: auto;
+    }
+
+    .per-material-placeholder p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      padding: 0.75rem 0 0.25rem;
+      font-style: italic;
+    }
+
+    .per-material-list-inner {
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 0.5rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.25rem 0;
+    }
+
+    #perMaterialFileSelect {
+      margin-top: 0.5rem;
+      margin-bottom: 0.5rem;
     }
 
     .results-table {
@@ -650,6 +747,37 @@
             </div>
           </div>
 
+          <div class="option-group" id="materialGroup">
+            <h3>Material</h3>
+            <div class="option-row">
+              <label for="optRoughness">Global roughness (all materials)</label>
+              <label class="toggle">
+                <input type="checkbox" id="optRoughness">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="roughness-controls" id="roughnessControls">
+              <input type="range" id="roughnessSlider" min="0" max="1" step="0.05" value="0.5">
+              <span id="roughnessValue">0.50</span>
+              <span class="roughness-hint">0 = shiny, 1 = matte</span>
+            </div>
+
+            <div class="per-material-section" id="perMaterialSection">
+              <button class="per-material-toggle" id="perMaterialToggle">
+                <span class="chevron">&#9654;</span> Per-material roughness
+              </button>
+              <div class="per-material-body" id="perMaterialBody">
+                <div class="per-material-placeholder" id="perMaterialPlaceholder">
+                  <p>Drop a file above to see its materials</p>
+                </div>
+                <div class="per-material-content" id="perMaterialContent" style="display:none;">
+                  <select id="perMaterialFileSelect" style="display:none;"></select>
+                  <div id="perMaterialList"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="option-group">
             <h3>Instancing</h3>
             <div class="option-row">
@@ -737,6 +865,10 @@
     const optSimplify = document.getElementById('optSimplify');
     const optDraco = document.getElementById('optDraco');
 
+    const optRoughness = document.getElementById('optRoughness');
+    const roughnessControls = document.getElementById('roughnessControls');
+    const roughnessSlider = document.getElementById('roughnessSlider');
+    const roughnessValue = document.getElementById('roughnessValue');
     const advancedToggle = document.getElementById('advancedToggle');
     const advancedPanel = document.getElementById('advancedPanel');
 
@@ -747,6 +879,7 @@
 
     let stagedFiles = [];
     const completedFiles = [];
+    const perFileMaterials = new Map();
 
     function formatBytes(bytes) {
       if (bytes === 0) return '0 B';
@@ -755,8 +888,8 @@
       return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${units[i]}`;
     }
 
-    function getOptions() {
-      return {
+    function getOptions(file) {
+      const opts = {
         textureFormat: document.getElementById('textureFormat').value,
         textureSize: parseInt(document.getElementById('textureSize').value, 10),
         dedup: document.getElementById('optDedup').checked,
@@ -768,7 +901,20 @@
         instance: document.getElementById('optInstance').checked,
         flatten: document.getElementById('optFlatten').checked,
         join: document.getElementById('optJoin').checked,
+        roughness: optRoughness.checked ? parseFloat(roughnessSlider.value) : null,
+        roughnessOverrides: {},
       };
+      if (file) {
+        const matData = perFileMaterials.get(file);
+        if (matData) {
+          const overrides = {};
+          for (const m of matData) {
+            if (m.override != null) overrides[m.name] = m.override;
+          }
+          if (Object.keys(overrides).length > 0) opts.roughnessOverrides = overrides;
+        }
+      }
+      return opts;
     }
 
     function updateStagedUI() {
@@ -804,16 +950,140 @@
     }
 
     stagedList.addEventListener('click', (e) => {
-      const btn = e.target.closest('.btn-remove');
-      if (!btn) return;
-      const idx = parseInt(btn.dataset.idx, 10);
+      const removeBtn = e.target.closest('.btn-remove');
+      if (!removeBtn) return;
+      const idx = parseInt(removeBtn.dataset.idx, 10);
+      perFileMaterials.delete(stagedFiles[idx]);
       stagedFiles.splice(idx, 1);
       updateStagedUI();
+      updatePerMaterialUI();
+    });
+
+    const perMaterialToggle = document.getElementById('perMaterialToggle');
+    const perMaterialBody = document.getElementById('perMaterialBody');
+    const perMaterialPlaceholder = document.getElementById('perMaterialPlaceholder');
+    const perMaterialContent = document.getElementById('perMaterialContent');
+    const perMaterialFileSelect = document.getElementById('perMaterialFileSelect');
+    const perMaterialList = document.getElementById('perMaterialList');
+
+    perMaterialToggle.addEventListener('click', () => {
+      perMaterialToggle.classList.toggle('open');
+      perMaterialBody.classList.toggle('open');
+      if (perMaterialBody.classList.contains('open')) {
+        updatePerMaterialUI();
+      }
+    });
+
+    perMaterialFileSelect.addEventListener('change', () => {
+      const idx = parseInt(perMaterialFileSelect.value, 10);
+      loadMaterialsForFile(idx);
+    });
+
+    function updatePerMaterialUI() {
+      if (stagedFiles.length === 0) {
+        perMaterialPlaceholder.style.display = '';
+        perMaterialContent.style.display = 'none';
+        return;
+      }
+      perMaterialPlaceholder.style.display = 'none';
+      perMaterialContent.style.display = '';
+
+      if (stagedFiles.length > 1) {
+        perMaterialFileSelect.style.display = '';
+        perMaterialFileSelect.innerHTML = stagedFiles.map((f, i) =>
+          `<option value="${i}">${f.name}</option>`
+        ).join('');
+      } else {
+        perMaterialFileSelect.style.display = 'none';
+      }
+
+      const idx = stagedFiles.length > 1 ? parseInt(perMaterialFileSelect.value, 10) : 0;
+      loadMaterialsForFile(idx);
+    }
+
+    async function loadMaterialsForFile(idx) {
+      const file = stagedFiles[idx];
+      if (!file) return;
+
+      if (perFileMaterials.has(file)) {
+        renderMaterialList(file, idx);
+        return;
+      }
+
+      perMaterialList.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem 0;">Loading materials…</p>';
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch('/api/inspect', { method: 'POST', body: formData });
+        if (!res.ok) throw new Error('Inspect failed');
+        const data = await res.json();
+        const matData = data.materials.map((m) => ({
+          name: m.name,
+          original: m.roughnessFactor,
+          override: null,
+        }));
+        perFileMaterials.set(file, matData);
+        renderMaterialList(file, idx);
+      } catch (err) {
+        perMaterialList.innerHTML = `<p style="color:var(--error);font-size:0.85rem;padding:0.5rem 0;">Could not load materials: ${err.message}</p>`;
+      }
+    }
+
+    function renderMaterialList(file, fileIdx) {
+      const matData = perFileMaterials.get(file);
+      if (!matData || matData.length === 0) {
+        perMaterialList.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem 0;">No materials found.</p>';
+        return;
+      }
+
+      let html = `<div style="display:flex;align-items:center;justify-content:space-between;margin:0.5rem 0 0.25rem;">
+        <span style="font-size:0.8rem;color:var(--text-muted);">${matData.length} materials</span>
+        <button class="btn-reset" data-file-idx="${fileIdx}" style="background:none;border:none;color:var(--accent);font-size:0.8rem;cursor:pointer;">Reset all</button>
+      </div>`;
+      html += '<div class="per-material-list-inner">';
+
+      matData.forEach((m, mi) => {
+        const val = m.override != null ? m.override : m.original;
+        html += `<div class="material-row" style="padding:0.4rem 0.75rem;">
+          <span class="material-name" title="${m.name}">${m.name || '(unnamed)'}</span>
+          <input type="range" min="0" max="1" step="0.05" value="${val}"
+                 data-file-idx="${fileIdx}" data-mat-idx="${mi}">
+          <span class="mat-val">${val.toFixed(2)}</span>
+        </div>`;
+      });
+
+      html += '</div>';
+      perMaterialList.innerHTML = html;
+    }
+
+    perMaterialList.addEventListener('input', (e) => {
+      const slider = e.target.closest('input[type="range"]');
+      if (!slider) return;
+      const fi = parseInt(slider.dataset.fileIdx, 10);
+      const mi = parseInt(slider.dataset.matIdx, 10);
+      const v = parseFloat(slider.value);
+      const matArr = perFileMaterials.get(stagedFiles[fi]);
+      if (matArr) matArr[mi].override = v;
+      slider.nextElementSibling.textContent = v.toFixed(2);
+    });
+
+    perMaterialList.addEventListener('click', (e) => {
+      const resetBtn = e.target.closest('.btn-reset');
+      if (!resetBtn) return;
+      const fi = parseInt(resetBtn.dataset.fileIdx, 10);
+      const matArr = perFileMaterials.get(stagedFiles[fi]);
+      if (matArr) {
+        matArr.forEach((m) => { m.override = null; });
+        renderMaterialList(stagedFiles[fi], fi);
+      }
     });
 
     document.getElementById('clearAll').addEventListener('click', () => {
+      perFileMaterials.clear();
       stagedFiles = [];
       updateStagedUI();
+      updatePerMaterialUI();
     });
 
     optSimplify.addEventListener('change', () => {
@@ -827,6 +1097,32 @@
     optDraco.addEventListener('change', () => {
       dracoNote.classList.toggle('visible', optDraco.checked);
     });
+
+    optRoughness.addEventListener('change', () => {
+      roughnessControls.classList.toggle('visible', optRoughness.checked);
+      if (optRoughness.checked) {
+        syncPerMaterialToGlobal(parseFloat(roughnessSlider.value));
+      }
+    });
+
+    roughnessSlider.addEventListener('input', () => {
+      const v = parseFloat(roughnessSlider.value);
+      roughnessValue.textContent = v.toFixed(2);
+      syncPerMaterialToGlobal(v);
+    });
+
+    function syncPerMaterialToGlobal(value) {
+      if (!optRoughness.checked) return;
+      const sliders = perMaterialList.querySelectorAll('input[type="range"]');
+      sliders.forEach((slider) => {
+        slider.value = value;
+        slider.nextElementSibling.textContent = value.toFixed(2);
+        const fi = parseInt(slider.dataset.fileIdx, 10);
+        const mi = parseInt(slider.dataset.matIdx, 10);
+        const matArr = perFileMaterials.get(stagedFiles[fi]);
+        if (matArr) matArr[mi].override = value;
+      });
+    }
 
     dropZone.addEventListener('click', () => fileInput.click());
     dropZone.querySelector('.browse').addEventListener('click', (e) => {
@@ -869,6 +1165,9 @@
       if (validFiles.length === 0) return;
       stagedFiles.push(...validFiles);
       updateStagedUI();
+      if (perMaterialBody.classList.contains('open')) {
+        updatePerMaterialUI();
+      }
     }
 
     compressBtn.addEventListener('click', () => {
@@ -904,7 +1203,7 @@
 
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('options', JSON.stringify(getOptions()));
+      formData.append('options', JSON.stringify(getOptions(file)));
 
       try {
         const response = await fetch('/api/optimize', {

@@ -75,7 +75,48 @@ const DEFAULT_OPTIONS = {
   flatten: false,
   join: false,
   weld: false,
+  roughness: null,
+  roughnessOverrides: {},
 };
+
+function applyRoughness(options) {
+  const globalVal = options.roughness;
+  const overrides = options.roughnessOverrides || {};
+  const hasOverrides = Object.keys(overrides).length > 0;
+
+  if (globalVal == null && !hasOverrides) return null;
+
+  return (document) => {
+    for (const mat of document.getRoot().listMaterials()) {
+      const name = mat.getName();
+      let target = null;
+
+      if (name in overrides) {
+        target = overrides[name];
+      } else if (globalVal != null) {
+        target = globalVal;
+      }
+
+      if (target != null) {
+        mat.setRoughnessFactor(target);
+        const mrTex = mat.getMetallicRoughnessTexture();
+        if (mrTex) {
+          mat.setMetallicRoughnessTexture(null);
+        }
+      }
+    }
+  };
+}
+
+export async function inspectGLB(inputBuffer) {
+  const io = await createIO();
+  const document = await io.readBinary(new Uint8Array(inputBuffer));
+  return document.getRoot().listMaterials().map((mat) => ({
+    name: mat.getName(),
+    roughnessFactor: mat.getRoughnessFactor(),
+    metallicFactor: mat.getMetallicFactor(),
+  }));
+}
 
 export async function createIO() {
   const io = new NodeIO()
@@ -127,6 +168,11 @@ export async function optimizeGLB(inputBuffer, userOptions = {}) {
 
   if (options.prune) {
     transforms.push(prune());
+  }
+
+  const roughnessTransform = applyRoughness(options);
+  if (roughnessTransform) {
+    transforms.push(roughnessTransform);
   }
 
   if (options.textureFormat) {

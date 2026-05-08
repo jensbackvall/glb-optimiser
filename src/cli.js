@@ -22,6 +22,7 @@ Options:
   --draco                     Enable Draco mesh compression
   --simplify                  Enable mesh simplification
   --simplify-ratio <ratio>    Simplification target ratio 0-1 (default: 0.75)
+  --roughness <value>         Override roughness for all materials 0-1 (0=shiny, 1=matte)
   --instance                  Enable GPU mesh instancing
   --flatten                   Flatten node hierarchy
   --join                      Join compatible meshes
@@ -62,6 +63,9 @@ function parseArgs(argv) {
         break;
       case '--simplify-ratio':
         options.simplifyRatio = parseFloat(args[++i]);
+        break;
+      case '--roughness':
+        options.roughness = parseFloat(args[++i]);
         break;
       case '--instance':
         options.instance = true;
