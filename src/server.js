@@ -154,6 +154,18 @@ app.post('/api/optimize', upload.single('file'), async (req, res) => {
   }
 });
 
+function clampImageQuality(quality, fallback = 85) {
+  const n = Number.parseInt(String(quality), 10);
+  if (Number.isNaN(n)) return fallback;
+  return Math.min(100, Math.max(40, n));
+}
+
+/** Map UI quality 40–100 to TinyPNG-like palette sizes (fewer colours ⇒ smaller PNG). */
+function qualityToPaletteColours(quality) {
+  const q = clampImageQuality(quality);
+  return Math.round(128 + ((q - 40) / 60) * 128);
+}
+
 app.post('/api/optimize-image', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
@@ -164,7 +176,9 @@ app.post('/api/optimize-image', upload.single('file'), async (req, res) => {
     return res.status(400).json({ error: 'Invalid options JSON' });
   }
 
-  const { format = 'webp', quality = 85, resizePercent = 100 } = options;
+  const format = (typeof options.format === 'string' ? options.format : 'webp').toLowerCase();
+  const quality = clampImageQuality(options.quality, 85);
+  const resizePercent = Math.min(100, Math.max(10, Number.parseInt(String(options.resizePercent), 10) || 100));
   const originalSize = req.file.size;
   const fileName = req.file.originalname;
 
@@ -182,10 +196,23 @@ app.post('/api/optimize-image', upload.single('file'), async (req, res) => {
     }
 
     switch (format) {
-      case 'avif': pipeline = pipeline.avif({ quality, effort: 5 }); break;
-      case 'jpeg': pipeline = pipeline.jpeg({ quality, mozjpeg: true }); break;
-      case 'png':  pipeline = pipeline.png({ compressionLevel: 9 }); break;
-      default:     pipeline = pipeline.webp({ quality, effort: 4 }); break;
+      case 'avif':
+        pipeline = pipeline.avif({ quality, effort: 6 });
+        break;
+      case 'jpeg':
+        pipeline = pipeline.jpeg({ quality, mozjpeg: true, progressive: true });
+        break;
+      case 'png':
+        pipeline = pipeline.png({
+          compressionLevel: 9,
+          adaptiveFiltering: true,
+          palette: true,
+          colours: qualityToPaletteColours(quality),
+        });
+        break;
+      default:
+        pipeline = pipeline.webp({ quality, effort: 6 });
+        break;
     }
 
     const outputBuffer = await pipeline.toBuffer();

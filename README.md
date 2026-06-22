@@ -70,7 +70,7 @@ Optimise flat images and 360° panoramas directly in the same interface. Drop a 
 | Option | Description | Default |
 |---|---|---|
 | **Format** | Output as WebP, AVIF, JPEG, or PNG | WebP |
-| **Quality** | Compression quality 40–100 (not applicable for lossless PNG) | 85 |
+| **Quality** | Compression quality 40–100 (WebP/AVIF/JPEG); for **PNG**, maps to indexed palette size (smaller file at lower quality) | 85 |
 | **Scale** | Resize by percentage (10–100%) using Lanczos3 resampling | 100% |
 
 **Supported input formats:** JPEG, PNG, WebP
@@ -83,7 +83,13 @@ Optimise flat images and 360° panoramas directly in the same interface. Drop a 
 - **WebP** — best general-purpose choice; 25–40% smaller than JPEG at equal quality
 - **AVIF** — smallest files (40–60% smaller than JPEG), slightly slower to encode
 - **JPEG** — maximum compatibility; uses mozjpeg encoder for better compression than standard JPEG
-- **PNG** — lossless; useful when pixel-perfect accuracy is required
+- **PNG** — **palette quantisation** (indexed colours) for much smaller files than raw true-colour PNG; quality maps to max palette size (~128–256 colours). Similar idea to compressors such as [TinyPNG](https://tinypng.com/). Use higher quality for photos with subtle gradients.
+
+**Encoder details (closer parity with TinyPNG-style tools):**
+
+- **WebP / AVIF** — `effort: 6` for a better size/encode-time trade-off
+- **JPEG** — mozjpeg with **progressive** scan for nicer perceived loading in browsers
+- **PNG** — palette mode with adaptive filtering and zlib level 9; quality slider controls how many palette entries are allowed
 
 ### Format Conversion (3D)
 
@@ -104,10 +110,12 @@ Convert common 3D formats to GLB automatically before optimization:
 
 ### 3D Model Optimisation
 
-- **Texture compression** — Convert to WebP, JPEG, PNG, or AVIF with configurable max resolution
+- **Texture compression** — Convert to WebP, JPEG, PNG, or AVIF with configurable max resolution and quality
 - **Deduplication** — Remove duplicate accessors, meshes, textures, and materials
 - **Prune** — Remove unused/unreferenced resources
-- **Draco compression** — KHR_draco_mesh_compression for geometry
+- **Quantize** — Compress vertex attributes (positions, normals, UVs) to smaller integer types using `KHR_mesh_quantization`; 50–75% geometry savings with no visible quality loss
+- **Meshopt compression** — `EXT_meshopt_compression` via meshoptimizer; includes vertex reordering + quantization for maximum geometry compression (requires MeshoptDecoder in renderer, e.g. Three.js r133+)
+- **Draco compression** — `KHR_draco_mesh_compression` for geometry (requires DRACOLoader in renderer); skipped when Meshopt is enabled
 - **Mesh simplification** — Reduce triangle count via meshoptimizer with configurable ratio
 - **GPU instancing** — EXT_mesh_gpu_instancing for repeated meshes
 - **Flatten** — Flatten scene graph hierarchy
@@ -157,16 +165,19 @@ node src/cli.js model.glb --draco --simplify --simplify-ratio 0.5 --weld --textu
 | `--convert-only` | Convert to GLB without optimizing | off |
 | `--texture-format` | `webp`, `jpeg`, `png`, `avif` | `webp` |
 | `--texture-size` | `512`, `1024`, `2048`, `4096` | `1024` |
+| `--texture-quality` | Texture quality 40–100 | `75` |
 | `--no-dedup` | Skip duplicate removal | enabled |
 | `--no-prune` | Skip unused resource removal | enabled |
+| `--quantize` | Quantize vertex data (KHR_mesh_quantization) | off |
 | `--draco` | Enable Draco mesh compression | off |
+| `--meshopt` | Enable Meshopt compression (includes quantize+reorder) | off |
 | `--simplify` | Enable mesh simplification | off |
 | `--simplify-ratio` | Target ratio 0-1 | `0.75` |
 | `--instance` | Enable GPU mesh instancing | off |
 | `--flatten` | Flatten node hierarchy | off |
 | `--join` | Join compatible meshes | off |
 | `--weld` | Weld duplicate vertices | off |
-| `--all` | Enable all optimizations | off |
+| `--all` | Enable all optimizations (meshopt, simplify, instance, flatten, join, weld) | off |
 
 ### Programmatic API
 
@@ -178,9 +189,12 @@ const input = readFileSync('model.glb');
 const output = await optimizeGLB(input, {
   textureFormat: 'webp',
   textureSize: 1024,
+  textureQuality: 75,
   dedup: true,
   prune: true,
-  draco: true,
+  quantize: true,   // or meshopt: true for maximum geometry compression
+  meshopt: false,   // set true to enable EXT_meshopt_compression (requires MeshoptDecoder)
+  draco: false,     // set true to enable KHR_draco_mesh_compression (ignored when meshopt: true)
   simplify: true,
   simplifyRatio: 0.75,
   weld: true,
@@ -199,7 +213,11 @@ writeFileSync('model-optimized.glb', output);
 Image files bypass the 3D pipeline entirely and are processed by [sharp](https://sharp.pixelplumbing.com/) (libvips):
 
 1. If `scale < 100%` — resize using **Lanczos3** kernel with `fit: fill` (preserves exact aspect ratio, no cropping or padding)
-2. Encode to the chosen output format with the chosen quality setting
+2. Encode to the chosen format:
+   - **WebP** — quality + `effort: 6`
+   - **AVIF** — quality + `effort: 6`
+   - **JPEG** — mozjpeg, progressive, configurable quality
+   - **PNG** — palette quantization (indexed colour); quality maps to palette size (~128–256 colours) for tinier files than uncompressed true-colour PNG
 3. Return the optimised image as a download
 
 The same server-side concurrency limiter that protects the 3D pipeline also applies here, so large image batches queue rather than exhaust memory.
@@ -223,8 +241,10 @@ The optimizer applies transforms in this order (when enabled):
 5. **simplify** — Reduce geometry via meshoptimizer
 6. **instance** — Create GPU instances for shared meshes
 7. **prune** — Clean up unreferenced resources
-8. **textureCompress** — Convert and resize textures
-9. **draco** — Apply Draco mesh compression (deferred to write)
+8. **textureCompress** — Convert, resize and re-encode textures at configurable quality
+9. **meshopt** — Apply EXT_meshopt_compression (includes reorder + quantize; takes priority over Draco)
+   — **or quantize** — Apply KHR_mesh_quantization only (no special decoder needed)
+   — **or draco** — Apply KHR_draco_mesh_compression (skipped when meshopt is enabled)
 
 ## Dependencies
 

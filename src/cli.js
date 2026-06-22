@@ -17,9 +17,12 @@ Options:
   --convert-only              Convert to GLB without optimizing
   --texture-format <format>   webp | jpeg | png | avif  (default: webp)
   --texture-size <size>       512 | 1024 | 2048 | 4096  (default: 1024)
+  --texture-quality <q>       Texture quality 40-100 (default: 75)
   --no-dedup                  Skip duplicate removal
   --no-prune                  Skip unused resource removal
-  --draco                     Enable Draco mesh compression
+  --quantize                  Quantize vertex data (KHR_mesh_quantization) — large geometry savings
+  --draco                     Enable Draco mesh compression (requires DRACOLoader in renderer)
+  --meshopt                   Enable Meshopt compression — includes quantize+reorder (requires MeshoptDecoder)
   --simplify                  Enable mesh simplification
   --simplify-ratio <ratio>    Simplification target ratio 0-1 (default: 0.75)
   --roughness <value>         Override roughness for all materials 0-1 (0=shiny, 1=matte)
@@ -27,7 +30,7 @@ Options:
   --flatten                   Flatten node hierarchy
   --join                      Join compatible meshes
   --weld                      Weld duplicate vertices
-  --all                       Enable all optimizations (draco, simplify, instance, flatten, join, weld)
+  --all                       Enable all optimizations (meshopt, simplify, instance, flatten, join, weld)
   -h, --help                  Show this help
 `;
 
@@ -49,14 +52,23 @@ function parseArgs(argv) {
       case '--texture-size':
         options.textureSize = parseInt(args[++i], 10);
         break;
+      case '--texture-quality':
+        options.textureQuality = parseInt(args[++i], 10);
+        break;
       case '--no-dedup':
         options.dedup = false;
         break;
       case '--no-prune':
         options.prune = false;
         break;
+      case '--quantize':
+        options.quantize = true;
+        break;
       case '--draco':
         options.draco = true;
+        break;
+      case '--meshopt':
+        options.meshopt = true;
         break;
       case '--simplify':
         options.simplify = true;
@@ -80,7 +92,8 @@ function parseArgs(argv) {
         options.weld = true;
         break;
       case '--all':
-        options.draco = true;
+        options.meshopt = true;
+        options.quantize = true;
         options.simplify = true;
         options.instance = true;
         options.flatten = true;

@@ -724,6 +724,13 @@
                 <option value="4096">4096px</option>
               </select>
             </div>
+            <div class="option-row">
+              <label>Quality</label>
+              <div style="display:flex;align-items:center;gap:0.5rem;">
+                <input type="range" id="textureQuality" min="40" max="100" step="5" value="75">
+                <span id="textureQualityValue" style="font-size:0.85rem;min-width:2rem;color:var(--text-muted);">75</span>
+              </div>
+            </div>
           </div>
 
           <div class="option-group">
@@ -750,9 +757,23 @@
               </label>
             </div>
             <div class="option-row">
+              <label for="optQuantize">Quantize vertices</label>
+              <label class="toggle">
+                <input type="checkbox" id="optQuantize">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="option-row">
               <label for="optDraco">Draco compression</label>
               <label class="toggle">
                 <input type="checkbox" id="optDraco">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="option-row">
+              <label for="optMeshopt">Meshopt compression</label>
+              <label class="toggle">
+                <input type="checkbox" id="optMeshopt">
                 <span class="slider"></span>
               </label>
             </div>
@@ -834,6 +855,12 @@
         <div class="note" id="dracoNote">
           <strong>Note:</strong> When using Draco compression, include DRACOLoader in your GLTF loader (Three.js, Unity, etc.).
         </div>
+        <div class="note" id="meshoptNote">
+          <strong>Note:</strong> Meshopt compression includes vertex quantization and reordering for maximum size reduction. Include MeshoptDecoder in your GLTF loader (Three.js r133+). Cannot be combined with Draco — Meshopt takes priority.
+        </div>
+        <div class="note" id="quantizeNote">
+          <strong>Note:</strong> Quantize compresses vertex data (positions, normals, UVs) to smaller integer types using KHR_mesh_quantization. Supported in all modern GLTF loaders (Three.js r129+).
+        </div>
       </div>
     </div>
 
@@ -851,7 +878,7 @@
                 <option value="webp" selected>WebP (recommended)</option>
                 <option value="avif">AVIF (smallest)</option>
                 <option value="jpeg">JPEG</option>
-                <option value="png">PNG (lossless)</option>
+                <option value="png">PNG (palette, smaller)</option>
               </select>
             </div>
             <div class="option-row" id="imgQualityRow">
@@ -861,7 +888,7 @@
                 <span id="imgQualityValue" style="font-size:0.85rem;min-width:2rem;color:var(--text-muted);">85</span>
               </div>
             </div>
-            <p class="png-lossless-note" id="imgPngNote" style="display:none;">PNG is lossless — quality does not apply.</p>
+            <p class="png-lossless-note" id="imgPngNote" style="display:none;"><strong>PNG:</strong> quality controls palette size (fewer colours = smaller files). Use higher quality for photos with smooth gradients.</p>
           </div>
 
           <div class="option-group">
@@ -960,6 +987,10 @@
     const roughnessValue = document.getElementById('roughnessValue');
     const advancedToggle = document.getElementById('advancedToggle');
     const advancedPanel = document.getElementById('advancedPanel');
+    const optMeshopt = document.getElementById('optMeshopt');
+    const optQuantize = document.getElementById('optQuantize');
+    const meshoptNote = document.getElementById('meshoptNote');
+    const quantizeNote = document.getElementById('quantizeNote');
 
     advancedToggle.addEventListener('click', () => {
       advancedToggle.classList.toggle('open');
@@ -982,10 +1013,13 @@
       const opts = {
         textureFormat: document.getElementById('textureFormat').value,
         textureSize: parseInt(document.getElementById('textureSize').value, 10),
+        textureQuality: parseInt(document.getElementById('textureQuality').value, 10),
         dedup: document.getElementById('optDedup').checked,
         prune: document.getElementById('optPrune').checked,
         weld: document.getElementById('optWeld').checked,
+        quantize: optQuantize.checked,
         draco: optDraco.checked,
+        meshopt: optMeshopt.checked,
         simplify: optSimplify.checked,
         simplifyRatio: parseFloat(simplifyRatio.value),
         instance: document.getElementById('optInstance').checked,
@@ -1204,7 +1238,23 @@
     });
 
     optDraco.addEventListener('change', () => {
-      dracoNote.classList.toggle('visible', optDraco.checked);
+      dracoNote.classList.toggle('visible', optDraco.checked && !optMeshopt.checked);
+    });
+
+    optMeshopt.addEventListener('change', () => {
+      meshoptNote.classList.toggle('visible', optMeshopt.checked);
+      if (optMeshopt.checked) {
+        dracoNote.classList.remove('visible');
+        quantizeNote.classList.remove('visible');
+      }
+    });
+
+    optQuantize.addEventListener('change', () => {
+      quantizeNote.classList.toggle('visible', optQuantize.checked && !optMeshopt.checked);
+    });
+
+    document.getElementById('textureQuality').addEventListener('input', (e) => {
+      document.getElementById('textureQualityValue').textContent = e.target.value;
     });
 
     optRoughness.addEventListener('change', () => {
@@ -1243,8 +1293,6 @@
 
     document.getElementById('imgFormat').addEventListener('change', (e) => {
       const isPng = e.target.value === 'png';
-      document.getElementById('imgQualityRow').style.opacity = isPng ? '0.4' : '';
-      document.getElementById('imgQualityRow').style.pointerEvents = isPng ? 'none' : '';
       document.getElementById('imgPngNote').style.display = isPng ? '' : 'none';
     });
 

@@ -10,9 +10,11 @@ import {
   flatten,
   join,
   weld,
+  quantize,
+  meshopt,
 } from '@gltf-transform/functions';
 import draco3d from 'draco3dgltf';
-import { MeshoptSimplifier } from 'meshoptimizer';
+import { MeshoptSimplifier, MeshoptEncoder, MeshoptDecoder } from 'meshoptimizer';
 import sharpBase from 'sharp';
 
 const MIN_TEXTURE_DIM = 1;
@@ -50,8 +52,8 @@ ImageUtils.impls['image/webp'] = {
   getVRAMBytesPerPixel() { return 4; },
 };
 
-function safeSharp(input) {
-  const inst = sharpBase(input);
+function safeSharp(input, sharpOptions = {}) {
+  const inst = sharpBase(input, sharpOptions);
   const origResize = inst.resize.bind(inst);
   inst.resize = (width, height, opts) => {
     const w = Math.max(Math.round(width) || MIN_TEXTURE_DIM, MIN_TEXTURE_DIM);
@@ -65,9 +67,12 @@ Object.assign(safeSharp, sharpBase);
 const DEFAULT_OPTIONS = {
   textureFormat: 'webp',
   textureSize: 1024,
+  textureQuality: 75,
   dedup: true,
   prune: true,
+  quantize: false,
   draco: false,
+  meshopt: false,
   simplify: false,
   simplifyRatio: 0.75,
   simplifyError: 0.001,
@@ -119,11 +124,15 @@ export async function inspectGLB(inputBuffer) {
 }
 
 export async function createIO() {
+  await MeshoptDecoder.ready;
+  await MeshoptEncoder.ready;
   const io = new NodeIO()
     .registerExtensions(KHRONOS_EXTENSIONS)
     .registerDependencies({
       'draco3d.decoder': await draco3d.createDecoderModule(),
       'draco3d.encoder': await draco3d.createEncoderModule(),
+      'meshopt.decoder': MeshoptDecoder,
+      'meshopt.encoder': MeshoptEncoder,
     });
   return io;
 }
@@ -179,7 +188,8 @@ export async function optimizeGLB(inputBuffer, userOptions = {}) {
     const textureOptions = {
       encoder: safeSharp,
       targetFormat: options.textureFormat,
-      slots: /^(?!normalTexture).*$/,
+      quality: options.textureQuality,
+      effort: 6,
     };
     if (options.textureSize) {
       textureOptions.resize = [options.textureSize, options.textureSize];
@@ -187,7 +197,17 @@ export async function optimizeGLB(inputBuffer, userOptions = {}) {
     transforms.push(textureCompress(textureOptions));
   }
 
-  if (options.draco) {
+  // meshopt includes reorder + quantize internally; prefer it over draco when both are selected
+  if (options.meshopt) {
+    await MeshoptEncoder.ready;
+    transforms.push(
+      meshopt({ encoder: MeshoptEncoder, level: 'high' })
+    );
+  } else if (options.quantize) {
+    transforms.push(quantize());
+  }
+
+  if (options.draco && !options.meshopt) {
     transforms.push(draco());
   }
 
